@@ -1,8 +1,15 @@
 import copy
 
 from agents.Base_Agent import Base_Agent
-from agents.DQN_agents.DQN import DQN
+from agents.DQN_agents.DQN import DQN, Config_DQN
 
+
+class Config_DQN_With_Fixed_Q_Targets(Config_DQN):
+    def __init__(self):
+        Config_DQN.__init__(self)
+        self.tau = 0.01
+
+      
 class DQN_With_Fixed_Q_Targets(DQN):
     """A DQN agent that uses an older version of the q_network as the target network"""
     agent_name = "DQN with Fixed Q Targets"

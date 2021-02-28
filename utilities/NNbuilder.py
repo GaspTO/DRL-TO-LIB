@@ -10,7 +10,7 @@ class NNbuilder(nn.Module):
     def conv_size_out(size, kernel_size = 5, stride = 2):
             return (size - (kernel_size - 1) - 1) // stride  + 1
 
-    def __init__(self,*args,**kwargs):
+    def __init__(self,architecture,input_dim,output_size):
         super(NNbuilder, self).__init__()
 
         self.units = {
@@ -18,7 +18,6 @@ class NNbuilder(nn.Module):
             "Conv2d": self.add_Conv2d_layer,
             "MaxPool2d": self.add_MaxPool2d,
         }
-
 
         self.activations = {
             "ReLU": nn.ReLU,
@@ -29,32 +28,15 @@ class NNbuilder(nn.Module):
 
         self.model = nn.ModuleList()
         self.secondary_operations = []
-        self.input_dim = None
-        self.output_size = None
-        self.config = None
-        if("input_dim" in kwargs):
-            self.input_dim = kwargs["input_dim"]
-        
-        if("output_size" in kwargs):
-            self.output_size = kwargs["output_size"]
-
-        if("config" in kwargs):
-            self.config = kwargs.get("config")
-            if(self.input_dim is None and "input_dim" in self.config):
-                self.input_dim = self.config["input_dim"]
-
-            if(self.output_size is None and "output_size" in self.config):
-                self.output_size = self.config["output_size"]
-
-        if(self.input_dim is None):
-            raise ValueError("Could not find dimension for input!")
-            
+        self.architecture = architecture    
+        self.input_dim = input_dim
+        self.output_size = output_size
         self.last_dim = self.input_dim
         self.build_from_config()
             
         
     def build_from_config(self):
-        for u in self.config["architecture"]:
+        for u in self.architecture:
             self.units[u[0]](*u[1:])
         self.add_output_layer()
 
@@ -69,7 +51,8 @@ class NNbuilder(nn.Module):
         secondary_op = None
         if(len(self.last_dim) != 2):
             secondary_op = [lambda x: x.reshape(x.size(0),-1)]
-        self.add_to_model(nn.Linear(torch.prod(self.last_dim[1:]),hidden_nodes),torch.tensor([self.last_dim[0],hidden_nodes]),secondary_op)
+        self.add_to_model(nn.Linear(torch.prod(self.last_dim[1:]).item(),hidden_nodes),\
+            torch.tensor([self.last_dim[0],hidden_nodes]),secondary_op)
         if(activation is not None):
             self.add_to_model(self.activations[activation](**act_arguments))       
 

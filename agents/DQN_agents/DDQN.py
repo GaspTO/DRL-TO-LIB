@@ -1,4 +1,13 @@
-from agents.DQN_agents.DQN_With_Fixed_Q_Targets import DQN_With_Fixed_Q_Targets
+from agents.DQN_agents.DQN_With_Fixed_Q_Targets import DQN_With_Fixed_Q_Targets, Config_DQN_With_Fixed_Q_Targets
+
+
+
+
+class Config_DDQN(Config_DQN_With_Fixed_Q_Targets):
+    def __init__(self,config=None):
+        Config_DQN_With_Fixed_Q_Targets.__init__(self,config)
+
+
 
 class DDQN(DQN_With_Fixed_Q_Targets):
     """A double DQN agent"""

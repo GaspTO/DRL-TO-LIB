@@ -8,17 +8,22 @@ class Epsilon_Greedy_Exploration(Base_Exploration_Strategy):
     def __init__(self, config):
         super().__init__(config)
         self.notified_that_exploration_turned_off = False
+        
+        '''
         if "exploration_cycle_episodes_length" in self.config.hyperparameters.keys():
             print("Using a cyclical exploration strategy")
             self.exploration_cycle_episodes_length = self.config.hyperparameters["exploration_cycle_episodes_length"]
         else:
             self.exploration_cycle_episodes_length = None
+        
 
         if "random_episodes_to_run" in self.config.hyperparameters.keys():
             self.random_episodes_to_run = self.config.hyperparameters["random_episodes_to_run"]
             print("Running {} random episodes".format(self.random_episodes_to_run))
         else:
             self.random_episodes_to_run = 0
+        '''
+        self.random_episodes_to_run = config.get_random_episodes_to_run()
 
     def perturb_action_for_exploration_purposes(self, action_info):
         """Perturbs the action of the agent to encourage exploration"""
@@ -45,12 +50,17 @@ class Epsilon_Greedy_Exploration(Base_Exploration_Strategy):
     def get_updated_epsilon_exploration(self, action_info, epsilon=1.0):
         """Gets the probability that we just pick a random action. This probability decays the more episodes we have seen"""
         episode_number = action_info["episode_number"]
-        epsilon_decay_denominator = self.config.hyperparameters["epsilon_decay_rate_denominator"]
+        epsilon_decay_denominator = self.config.get_epsilon_decay_rate_denominator()
 
+        '''
         if self.exploration_cycle_episodes_length is None:
+        '''
+        if(True):
             epsilon = epsilon / (1.0 + (episode_number / epsilon_decay_denominator))
+        '''
         else:
             epsilon = self.calculate_epsilon_with_cyclical_strategy(episode_number)
+        '''
         return epsilon
 
     def calculate_epsilon_with_cyclical_strategy(self, episode_number):

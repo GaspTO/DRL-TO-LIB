@@ -9,7 +9,7 @@ class Dueling_DDQN(DDQN):
 
     def __init__(self, config):
         DDQN.__init__(self, config)
-        self.q_network_local = self.create_NN_through_NNbuilder(input_dim=self.input_shape, output_size=self.action_size)
+        self.q_network_local = self.create_NN_through_NNbuilder(input_dim=self.input_shape, output_size=self.action_size+1)
         #self.q_network_local = self.create_NN(input_dim=self.state_size, output_dim=self.action_size + 1)
         self.q_network_optimizer = optim.Adam(self.q_network_local.parameters(), lr=self.hyperparameters["learning_rate"], eps=1e-4)
         self.create_NN_through_NNbuilder(input_dim=self.input_shape, output_size=self.action_size)

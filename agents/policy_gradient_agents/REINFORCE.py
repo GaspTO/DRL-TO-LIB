@@ -2,26 +2,42 @@ import numpy as np
 import torch
 import torch.optim as optim
 from torch.distributions import Categorical
-from agents.Base_Agent import Base_Agent
+from agents.Base_Agent import Base_Agent, Config_Base_Agent
+
+
+class Config_Reinforce(Config_Base_Agent):
+    def __init__(self,config=None):
+        Config_Base_Agent.__init__(self,config)
+        if(isinstance(config,Config_Reinforce)):
+            self.discount_rate = config.get_discount_rate()
+            self.learning_rate = config.get_learning_rate()
+        else:
+            self.discount_rate = 0.99
+            self.learning_rate = 1
+    
+    def get_discount_rate(self):
+        if(self.discount_rate == None):
+            raise ValueError("Discount Rate Not Defined")
+        return self.discount_rate
+
+    def get_learning_rate(self):
+        if(self.learning_rate == None):
+            raise ValueError("Learning Rate Not Defined")
+        return self.learning_rate
+
 
 class REINFORCE(Base_Agent):
     agent_name = "REINFORCE"
     def __init__(self, config):
         Base_Agent.__init__(self, config)
-        self.policy = self.create_NN(input_dim=self.state_size, output_dim=self.action_size)
-        self.optimizer = optim.Adam(self.policy.parameters(), lr=self.hyperparameters["learning_rate"])
+        self.policy = self.create_NN_through_NNbuilder(input_dim=self.input_shape, output_size=self.action_size)
+        self.optimizer = optim.Adam(self.policy.parameters(), lr=self.config.get_learning_rate())
         self.episode_rewards = []
         self.episode_log_probabilities = []
 
     def reset_game(self):
         """Resets the game information so we are ready to play a new episode"""
-        self.state = self.environment.reset_environment()
-        self.next_state = None
-        self.action = None
-        self.reward = None
-        self.done = False
-        self.total_episode_score_so_far = 0
-        self.episode_rewards = []
+        super().reset_game()
         self.episode_log_probabilities = []
         self.episode_step_number = 0
 
@@ -29,7 +45,7 @@ class REINFORCE(Base_Agent):
         """Runs a step within a game including a learning step if required"""
         while not self.done:
             self.pick_and_conduct_action_and_save_log_probabilities()
-            self.update_next_state_reward_done_and_score()
+            #self.update_next_state_reward_done_and_score()
             self.store_reward()
             if self.time_to_learn():
                 self.actor_learn()
@@ -43,17 +59,24 @@ class REINFORCE(Base_Agent):
         action, log_probabilities = self.pick_action_and_get_log_probabilities()
         self.store_log_probabilities(log_probabilities)
         self.store_action(action)
-        self.conduct_action()
+        self.conduct_action(action)
 
     def pick_action_and_get_log_probabilities(self):
         """Picks actions and then calculates the log probabilities of the actions it picked given the policy"""
         # PyTorch only accepts mini-batches and not individual observations so we have to add
         # a "fake" dimension to our observation using unsqueeze
+        smoothing = 0.001
         state = torch.from_numpy(self.state).float().unsqueeze(0).to(self.device)
-        action_probabilities = self.policy.forward(state).cpu()
-        action_distribution = Categorical(action_probabilities) # this creates a distribution to sample from
+        action_values = self.policy.forward(state).cpu() + smoothing
+        action_values_copy = action_values.detach()
+        if(self.action_mask_required == True):
+            mask = self.get_action_mask()
+            unormed_action_values =  action_values_copy.mul(mask)
+            action_values_copy =  (unormed_action_values)/(unormed_action_values.sum())
+        action_distribution = Categorical(action_values_copy) # this creates a distribution to sample from
         action = action_distribution.sample()
-        return action.item(), action_distribution.log_prob(action)
+        
+        return action.item(), torch.log(action_values[0][action])
 
     def store_log_probabilities(self, log_probabilities):
         """Stores the log probabilities of picked actions to be used for learning later"""
@@ -77,7 +100,7 @@ class REINFORCE(Base_Agent):
 
     def calculate_episode_discounted_reward(self):
         """Calculates the cumulative discounted return for the episode"""
-        discounts = self.hyperparameters["discount_rate"] ** np.arange(len(self.episode_rewards))
+        discounts = self.config.get_discount_rate() ** np.arange(len(self.episode_rewards))
         total_discounted_reward = np.dot(discounts, self.episode_rewards)
         return total_discounted_reward
 
