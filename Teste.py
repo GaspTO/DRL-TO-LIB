@@ -11,6 +11,7 @@ from environments.Gomoku import GomokuEnv
 from utilities.data_structures.Config import Config
 from agents.Base_Agent import Base_Agent, Config_Base_Agent
 from agents.policy_gradient_agents.REINFORCE import REINFORCE, Config_Reinforce
+from logic.Logic_Loss_Reinforce import Logic_Loss_Reinforce
 from agents.DQN_agents.DDQN import DDQN, Config_DDQN
 from agents.DQN_agents.DQN import DQN, Config_DQN
 from agents.actor_critic_agents.A3C import A3C, Config_A3C
@@ -41,7 +42,7 @@ config.use_GPU = False
 config_base_agent = Config_Base_Agent(config)
 config_base_agent.batch_size = 1
 config_base_agent.clip_rewards = False
-config_base_agent.architecture = (("Linear",30,"Sigmoid"),("Linear",30,"Sigmoid"),("Linear",30,"Sigmoid"))
+config_base_agent.architecture = (("Linear",30,"Sigmoid"),("Linear",30,"Sigmoid"),("Linear",30,"Sigmoid"),("Linear",30,"Sigmoid"))
 config_base_agent.input_dim = None 
 config_base_agent.output_size = None
 config_base_agent.is_mask_needed = True
@@ -75,11 +76,12 @@ config_A3C = Config_A3C(config_base_agent)
 
 
 
-agent = REINFORCE(config_reinforce)
-agent = DQN(config_DQN)
-agent = DDQN(config_DDQN)
-agent = A3C(config_A3C)
-game_scores, rolling_scores, time_taken = agent.run_n_episodes(num_episodes=1000)
+agent = REINFORCE(config_reinforce) #2734
+#agent = Logic_Loss_Reinforce(config_reinforce)
+#agent = DQN(config_DQN)
+#agent = DDQN(config_DDQN)
+#agent = A3C(config_A3C)
+game_scores, rolling_scores, time_taken = agent.run_n_episodes(num_episodes=5000)
 
 
 

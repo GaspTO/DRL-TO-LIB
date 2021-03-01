@@ -70,9 +70,53 @@ class REINFORCE(Base_Agent):
         action_values_copy = action_values.detach()
         action_distribution = Categorical(action_values_copy) # this creates a distribution to sample from
         action = action_distribution.sample()
-        
         return action.item(), torch.log(action_values[0][action])
 
+    
+    """ Learn """
+    def actor_learn(self):
+        """Runs a learning iteration for the policy"""
+        total_discounted_reward = self.calculate_episode_discounted_reward()
+        policy_loss = self.calculate_policy_loss_on_episode(total_discounted_reward)
+        self.optimizer.zero_grad()
+        policy_loss.backward()
+        self.optimizer.step()
+        print("...")
+
+    def time_to_learn(self):
+        """Tells us whether it is time for the algorithm to learn. With REINFORCE we only learn at the end of every
+        episode so this just returns whether the episode is over"""
+        return self.done
+
+    
+    """ Calculate Loss """
+    def calculate_discounted_returns(self):
+        discounted_returns = []
+        discounted_reward = 0
+        for ix in range(len(self.episode_rewards)):
+            discounted_reward = self.episode_rewards[-(ix + 1)] + self.config.get_discount_rate()*discounted_reward
+            discounted_returns.insert(0,discounted_reward)
+        return discounted_returns
+
+    def calculate_episode_discounted_reward(self):
+        """Calculates the cumulative discounted return for the episode"""
+        discounts = self.config.get_discount_rate() ** np.arange(len(self.episode_rewards))
+        total_discounted_reward = np.dot(discounts, self.episode_rewards)
+        return total_discounted_reward
+
+    def calculate_policy_loss_on_episode(self, total_discounted_reward):
+        return -1.0 * (torch.tensor(self.calculate_discounted_returns()) * torch.cat(self.episode_log_probabilities)).sum()
+        """Calculates the loss from an episode"""
+        '''
+        policy_loss = []
+        for log_prob in self.episode_log_probabilities:
+            policy_loss.append(-log_prob * total_discounted_reward)
+        policy_loss = torch.cat(policy_loss).sum() # We need to add up the losses across the mini-batch to get 1 overall loss
+        return policy_loss
+        '''
+
+
+    """ Storage """
     def store_log_probabilities(self, log_probabilities):
         """Stores the log probabilities of picked actions to be used for learning later"""
         self.episode_log_probabilities.append(log_probabilities)
@@ -85,29 +129,5 @@ class REINFORCE(Base_Agent):
         """Stores the reward picked"""
         self.episode_rewards.append(self.reward)
 
-    def actor_learn(self):
-        """Runs a learning iteration for the policy"""
-        total_discounted_reward = self.calculate_episode_discounted_reward()
-        policy_loss = self.calculate_policy_loss_on_episode(total_discounted_reward)
-        self.optimizer.zero_grad()
-        policy_loss.backward()
-        self.optimizer.step()
 
-    def calculate_episode_discounted_reward(self):
-        """Calculates the cumulative discounted return for the episode"""
-        discounts = self.config.get_discount_rate() ** np.arange(len(self.episode_rewards))
-        total_discounted_reward = np.dot(discounts, self.episode_rewards)
-        return total_discounted_reward
-
-    def calculate_policy_loss_on_episode(self, total_discounted_reward):
-        """Calculates the loss from an episode"""
-        policy_loss = []
-        for log_prob in self.episode_log_probabilities:
-            policy_loss.append(-log_prob * total_discounted_reward)
-        policy_loss = torch.cat(policy_loss).sum() # We need to add up the losses across the mini-batch to get 1 overall loss
-        return policy_loss
-
-    def time_to_learn(self):
-        """Tells us whether it is time for the algorithm to learn. With REINFORCE we only learn at the end of every
-        episode so this just returns whether the episode is over"""
-        return self.done
+    

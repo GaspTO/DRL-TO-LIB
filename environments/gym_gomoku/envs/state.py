@@ -1,3 +1,4 @@
+from gym import utils
 import numpy as np
 import gym
 from gym import spaces
@@ -122,6 +123,18 @@ class Board(object):
                     legal_action.append(self.coord_to_action(i, j))
         return legal_action
     
+    def get_critical_action(self):
+        black,white = gomoku_util.collect_critical_actions(self.board_state)
+        black2 = [None] * len(black)
+        white2 = [None] * len(white)
+        for i in range(len(black)):
+            black2[i] = self.coord_to_action(black[i][0], black[i][1])
+
+        for i in range(len(white)):
+            white2[i] = self.coord_to_action(white[i][0], white[i][1])
+
+        return black2,white2,black,white
+
     def copy(self, board_state):
         '''update board_state of current board values from input 2D list
         '''

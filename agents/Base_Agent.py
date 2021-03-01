@@ -152,6 +152,7 @@ class Base_Agent(object):
         if self.config.get_clip_rewards(): self.reward =  max(min(self.reward, 1.0), -1.0)
         if(self.done == True):
             self.logger.info("Game ended -- Final state {}".format(self.next_state))
+            #self.logger.info("Game ended -- Final state {}".format(self.episode_states))
             self.logger.info("reward: {}".format(self.reward))
 
     def get_environment_title(self):

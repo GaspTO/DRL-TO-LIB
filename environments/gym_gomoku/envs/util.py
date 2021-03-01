@@ -84,6 +84,31 @@ class GomokuUtil(object):
             val.append(board_state[i][j])
         return val
     
+    def collect_critical_actions(self, board_state):
+        ''' Args: board_state 2D list
+            Return: b_actions,w_actions   -  a list of actions that will win the game for black and white, respectively
+        '''
+        b_actions = set()
+        for o in range(5):
+            pattern = [1,1,1,1,1]
+            pattern[o] = 0
+            b_lines, b_starts = self.check_pattern_index(board_state,pattern)
+            if(len(b_starts)>=1):
+                for idx in range(len(b_starts)):
+                    b_actions.add(b_lines[idx][b_starts[idx] + o])
+
+        w_actions = set()
+        for o in range(5):
+            pattern = [2,2,2,2,2]
+            pattern[o] = 0
+            b_lines, b_starts = self.check_pattern_index(board_state,pattern)
+            if(len(b_starts)>=1):
+                for idx in range(len(b_starts)):
+                    w_actions.add(b_lines[idx][b_starts[idx] + o])
+        
+        return list(b_actions),list(w_actions)
+
+
     def check_five_in_row(self, board_state):
         ''' Args: board_state 2D list
             Return: exist, color
@@ -321,4 +346,6 @@ def make_expert_policy():
         '''To Do'''
         return 0
     return expert_policy
+
+
 
