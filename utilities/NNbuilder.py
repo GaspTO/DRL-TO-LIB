@@ -10,7 +10,7 @@ class NNbuilder(nn.Module):
     def conv_size_out(size, kernel_size = 5, stride = 2):
             return (size - (kernel_size - 1) - 1) // stride  + 1
 
-    def __init__(self,architecture,input_dim,output_size):
+    def __init__(self,architecture,input_dim,output_size, smoothing = 0):
         super(NNbuilder, self).__init__()
 
         self.units = {
@@ -31,6 +31,7 @@ class NNbuilder(nn.Module):
         self.architecture = architecture    
         self.input_dim = input_dim
         self.output_size = output_size
+        self.smoothing = smoothing
         self.last_dim = self.input_dim
         self.build_from_config()
             
@@ -74,13 +75,21 @@ class NNbuilder(nn.Module):
     def add_output_layer(self):
         self.add_Linear_layer(self.output_size,"Softmax",{"dim":1})
 
-    def forward(self,x):
+    def forward(self,x,mask=None):
         for operation_set in zip(self.secondary_operations,self.model):
             if(operation_set[0] is not None):
                 for second_op in operation_set[0]:
                     x = second_op(x)
             x = operation_set[1](x)
+        
+        x = x + self.smoothing
+        if(mask != None):
+            x = x.mul(mask)
+        x = x/x.sum()
         return x
+
+        
+
 
 
 

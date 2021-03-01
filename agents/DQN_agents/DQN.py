@@ -57,7 +57,7 @@ class DQN(Base_Agent):
     def __init__(self, config):
         Base_Agent.__init__(self, config)
         self.memory = Replay_Buffer(self.config.get_buffer_size(), self.config.get_batch_size(), self.config.get_seed(), self.device)
-        self.q_network_local = self.create_NN_through_NNbuilder(input_dim=self.input_shape, output_size=self.action_size)
+        self.q_network_local = self.create_NN_through_NNbuilder(input_dim=self.input_shape, output_size=self.action_size,smoothing=0.001)
         self.q_network_optimizer = optim.Adam(self.q_network_local.parameters(),
                                               lr=self.config.get_learning_rate(), eps=1e-4)
         self.exploration_strategy = Epsilon_Greedy_Exploration(config)
@@ -94,18 +94,12 @@ class DQN(Base_Agent):
         if len(state.shape) < 2: state = state.unsqueeze(0)
         self.q_network_local.eval() #puts network in evaluation mode
         with torch.no_grad():
-            action_values = self.q_network_local(state)
+            action_values = self.q_network_local(state,self.get_action_mask())
         self.q_network_local.train() #puts network back in training mode
-        if(self.action_mask_required == True):
-            mask = self.get_action_mask()
-            unormed_action_values =  action_values.mul(mask)
-            action_values =  unormed_action_values/unormed_action_values.sum()
-        else:
-            mask = None
         action = self.exploration_strategy.perturb_action_for_exploration_purposes({"action_values": action_values,
                                                                                     "turn_off_exploration": self.turn_off_exploration,
                                                                                     "episode_number": self.episode_number,
-                                                                                    "mask": mask})
+                                                                                    "mask": self.get_action_mask()})
         self.logger.info("Q values {} -- Action chosen {}".format(action_values, action))
         return action
 

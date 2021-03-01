@@ -18,14 +18,14 @@ class Config_A3C(Config_Base_Agent):
             self.discount_rate = config.get_discount_rate()
             self.epsilon_decay_rate_denominator = config.get_epsilon_decay_rate_denominator()
             self.exploration_worker_difference = config.get_exploration_worker_difference()
-            self.gradient_clipping = config.get_gradient_clipping()
+            self.gradient_clipping_norm = config.get_gradient_clipping_norm()
             self.learning_rate = config.get_learning_rate()
             self.normalise_rewards = config.get_normalise_rewards()
         else:
             self.discount_rate = 0.99
             self.epsilon_decay_rate_denominator = 1
             self.exploration_worker_difference = 2.0
-            self.gradient_clipping = 0.7
+            self.gradient_clipping_norm = 0.7
             self.learning_rate = 1
             self.normalise_rewards = True
 
@@ -38,13 +38,12 @@ class Config_A3C(Config_Base_Agent):
     def get_exploration_worker_difference(self):
         return self.exploration_worker_difference
 
-    def get_gradient_clipping(self):
-        return self.gradient_clipping
+    def get_gradient_clipping_norm(self):
+        return self.gradient_clipping_norm
 
     def get_normalise_rewards(self):
         return self.normalise_rewards
         
-
 class A3C(Base_Agent):
     """Actor critic A3C algorithm from deepmind paper https://arxiv.org/pdf/1602.01783.pdf"""
     agent_name = "A3C"
@@ -52,18 +51,23 @@ class A3C(Base_Agent):
         super(A3C, self).__init__(config)
         self.num_processes = multiprocessing.cpu_count()
         self.worker_processes = max(1, self.num_processes - 2)
-        self.worker_processes = 1
-        self.actor_critic = self.create_NN_through_NNbuilder(input_dim=self.input_shape, output_size=self.action_size + 1)
+        print("...crapp")
+        self.worker_processes = 2
+        self.actor_critic = self.create_NN_through_NNbuilder(input_dim=self.input_shape, output_size=self.action_size + 1, smoothing=0.001)
         self.actor_critic_optimizer = SharedAdam(self.actor_critic.parameters(), lr=config.learning_rate, eps=1e-4)
 
-    def run_n_episodes(self):
+    def run_n_episodes(self, num_episodes = None):
         """Runs game to completion n times and then summarises results and saves model (if asked to)"""
         start = time.time()
         results_queue = Queue()
         gradient_updates_queue = Queue()
         episode_number = multiprocessing.Value('i', 0)
         self.optimizer_lock = multiprocessing.Lock()
-        episodes_per_process = int(self.config.num_episodes_to_run / self.worker_processes) + 1
+        if(num_episodes != None):
+            self.num_episodes_to_run = num_episodes
+        else:
+            self.num_episodes_to_run = self.config.num_episodes_to_run
+        episodes_per_process = int(self.num_episodes_to_run / self.worker_processes) + 1
         processes = []
         self.actor_critic.share_memory()
         self.actor_critic_optimizer.share_memory()
@@ -111,7 +115,7 @@ class A3C(Base_Agent):
                 for grads, params in zip(gradients, self.actor_critic.parameters()):
                     params._grad = grads  # maybe need to do grads.clone()
                 self.actor_critic_optimizer.step()
-        print("LEAVING FINALLY THE UPDATE")
+        
 
 class Actor_Critic_Worker(torch.multiprocessing.Process,Base_Agent):
 
@@ -124,7 +128,7 @@ class Actor_Critic_Worker(torch.multiprocessing.Process,Base_Agent):
         self.environment = environment
         self.worker_num = worker_num
 
-        self.gradient_clipping_norm = self.config.gradient_clipping_norm
+        self.gradient_clipping_norm = self.config.get_gradient_clipping_norm()
         self.discount_rate = self.config.discount_rate
         self.normalise_rewards = self.config.normalise_rewards
 
@@ -197,16 +201,19 @@ class Actor_Critic_Worker(torch.multiprocessing.Process,Base_Agent):
 
     def pick_action_and_get_critic_values(self, policy, state, epsilon_exploration=None):
         """Picks an action using the policy"""
+        smoothing = 0.001
         state = torch.from_numpy(state).float().unsqueeze(0)
-        model_output = policy.forward(state)
+        model_output = policy.forward(state,None)
         actor_output = model_output[:, list(range(self.action_size))] #we only use first set of columns to decide action, last column is state-value
         critic_output = model_output[:, -1]
-        if(self.action_mask_required == True):
+
+        if(self.action_mask_required == True): #todo can't use the forward for this mask cause... critic_output
             mask = self.get_action_mask()
             unormed_action_values =  actor_output.mul(mask)
             actor_output =  unormed_action_values/unormed_action_values.sum()
         else:
             mask = None
+        
         action_distribution = create_actor_distribution(self.action_types, actor_output, self.action_size)
         action = action_distribution.sample().cpu().numpy()
         if self.action_types == "CONTINUOUS": action += self.noise.sample()

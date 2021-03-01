@@ -202,6 +202,8 @@ class Base_Agent(object):
     def get_action_mask(self):
         if(self.action_mask_required == True):
             return torch.tensor(self.environment.get_mask())
+        else:
+            return None
 
     def step(self):
         """Takes a step in the game. This method must be overriden by any agent"""
@@ -233,8 +235,8 @@ class Base_Agent(object):
                   random_seed=seed).to(self.device)
     '''
 
-    def create_NN_through_NNbuilder(self,input_dim,output_size):
-        return NNbuilder(architecture=self.config.architecture,input_dim=input_dim,output_size=output_size).to(self.device)
+    def create_NN_through_NNbuilder(self,input_dim,output_size,smoothing):
+        return NNbuilder(architecture=self.config.architecture,input_dim=input_dim,output_size=output_size,smoothing=smoothing).to(self.device)
 
     def run_n_episodes(self, num_episodes=None, show_whether_achieved_goal=True, save_and_print_results=True):
         """Runs game to completion n times and then summarises results and saves model (if asked to)"""

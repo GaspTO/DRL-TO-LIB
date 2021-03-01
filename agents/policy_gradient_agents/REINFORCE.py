@@ -30,7 +30,7 @@ class REINFORCE(Base_Agent):
     agent_name = "REINFORCE"
     def __init__(self, config):
         Base_Agent.__init__(self, config)
-        self.policy = self.create_NN_through_NNbuilder(input_dim=self.input_shape, output_size=self.action_size)
+        self.policy = self.create_NN_through_NNbuilder(input_dim=self.input_shape, output_size=self.action_size,smoothing=0.001)
         self.optimizer = optim.Adam(self.policy.parameters(), lr=self.config.get_learning_rate())
         self.episode_rewards = []
         self.episode_log_probabilities = []
@@ -65,14 +65,9 @@ class REINFORCE(Base_Agent):
         """Picks actions and then calculates the log probabilities of the actions it picked given the policy"""
         # PyTorch only accepts mini-batches and not individual observations so we have to add
         # a "fake" dimension to our observation using unsqueeze
-        smoothing = 0.001
         state = torch.from_numpy(self.state).float().unsqueeze(0).to(self.device)
-        action_values = self.policy.forward(state).cpu() + smoothing
+        action_values = self.policy.forward(state,self.get_action_mask()).cpu() 
         action_values_copy = action_values.detach()
-        if(self.action_mask_required == True):
-            mask = self.get_action_mask()
-            unormed_action_values =  action_values_copy.mul(mask)
-            action_values_copy =  (unormed_action_values)/(unormed_action_values.sum())
         action_distribution = Categorical(action_values_copy) # this creates a distribution to sample from
         action = action_distribution.sample()
         

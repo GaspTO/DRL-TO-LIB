@@ -1,3 +1,4 @@
+from agents.DQN_agents.DQN_With_Fixed_Q_Targets import Config_DQN_With_Fixed_Q_Targets
 import os
 import sys
 from os.path import dirname, abspath
@@ -18,7 +19,7 @@ from agents.actor_critic_agents.A3C import A3C, Config_A3C
 """ Config """
 config = Config()
 config.debug_mode = False
-config.environment = GomokuEnv('black','beginner',9)
+config.environment = GomokuEnv('black','random',9)
 config.file_to_save_data_results = "results/data_and_graphs/Cart_Pole_Results_Data.pkl"
 config.file_to_save_results_graph = "results/data_and_graphs/Cart_Pole_Results_Graph.png"
 config.hyperparameters = None
@@ -61,10 +62,23 @@ config_DQN.learning_iterations = 1
 config_DQN.learning_rate = 0.01
 config_DQN.update_every_n_steps = 1
 
+""" Config DQN With Fixed Targets """
+config_DQN_wft = Config_DQN_With_Fixed_Q_Targets(config_DQN)
+config_DQN_wft.tau = 0.01
+
+""" Config DDQN """
+config_DDQN = Config_DDQN(config_DQN_wft)
+
+""" Config A3C """
+config_A3C = Config_A3C(config_base_agent)
+
+
 
 
 agent = REINFORCE(config_reinforce)
 agent = DQN(config_DQN)
+agent = DDQN(config_DDQN)
+agent = A3C(config_A3C)
 game_scores, rolling_scores, time_taken = agent.run_n_episodes(num_episodes=1000)
 
 
