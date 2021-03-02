@@ -208,7 +208,7 @@ class Actor_Critic_Worker(torch.multiprocessing.Process,Base_Agent):
         critic_output = model_output[:, -1]
 
         if(self.action_mask_required == True): #todo can't use the forward for this mask cause... critic_output
-            mask = self.get_action_mask()
+            mask = self.get_action_mask() #todo I am not detaching
             unormed_action_values =  actor_output.mul(mask)
             actor_output =  unormed_action_values/unormed_action_values.sum()
         else:

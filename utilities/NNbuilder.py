@@ -43,8 +43,9 @@ class NNbuilder(nn.Module):
 
 
     def add_to_model(self,unit,new_dim = None,secondary_operation=None):
+        ''' Secondary operations are operations that do not go into the computation graph, like reshaping '''
         self.model.append(unit)
-        self.secondary_operations.append(secondary_operation)
+        self.secondary_operations.append(secondary_operation) 
         if(new_dim is not None):
             self.last_dim = new_dim
 
@@ -52,7 +53,8 @@ class NNbuilder(nn.Module):
         secondary_op = None
         if(len(self.last_dim) != 2):
             secondary_op = [lambda x: x.reshape(x.size(0),-1)]
-        self.add_to_model(nn.Linear(torch.prod(self.last_dim[1:]).item(),hidden_nodes),\
+        self.add_to_model(\
+            nn.Linear(torch.prod(self.last_dim[1:]).item(),hidden_nodes),\
             torch.tensor([self.last_dim[0],hidden_nodes]),secondary_op)
         if(activation is not None):
             self.add_to_model(self.activations[activation](**act_arguments))       
@@ -60,12 +62,15 @@ class NNbuilder(nn.Module):
     #def add_Conv1d_layer(self,out_channels,kernel_size,stride, activation_function):
 
     def add_Conv2d_layer(self,out_channels,kernel_size,stride,activation: str = None):
+        secondary_op = None
         if(len(self.last_dim)!=4):
-            raise ValueError("Conv needs a 4-D input")
+            if(len(self.last_dim)==3):
+                secondary_op = [lambda x: x.reshape(x.size(0),1,x.size(1),x.size(2))]
+                self.last_dim = torch.tensor([self.last_dim[0],1,self.last_dim[1],self.last_dim[2]])
         
         h = NNbuilder.conv_size_out(self.last_dim[2],kernel_size,stride)
         w = NNbuilder.conv_size_out(self.last_dim[3],kernel_size,stride)
-        self.add_to_model(nn.Conv2d(self.last_dim[1],out_channels,kernel_size,stride),torch.tensor([self.last_dim[0],out_channels,h,w]))
+        self.add_to_model(nn.Conv2d(self.last_dim[1],out_channels,kernel_size,stride),torch.tensor([self.last_dim[0],out_channels,h,w]),secondary_op)
         if(activation is not None):
             self.add_to_model(self.activations[activation]())
 
@@ -84,6 +89,7 @@ class NNbuilder(nn.Module):
         
         x = x + self.smoothing
         if(mask != None):
+            raise ValueError("I'm masking where I shouldn't")
             x = x.mul(mask)
         x = x/x.sum()
         return x
@@ -95,7 +101,7 @@ class NNbuilder(nn.Module):
 
 
 
-'''
+
 config = {
     "input_dim": (1,2,20,20),
     "architecture": (("Conv2d",2,2,1,"ReLU"),
@@ -104,12 +110,19 @@ config = {
         ("Linear",15,"ReLU"),
         ("Linear",1,"ReLU"))
 }    
+input_dim =  (1,2,20,20)
+architecture = (("Conv2d",2,2,1,"ReLU"),
+        ("Conv2d",5,2,1,"ReLU"),
+        ("Linear",5,"ReLU"),
+        ("Linear",15,"ReLU"),
+        ("Linear",1,"ReLU"))
+output_dim
+
 inpute = torch.tensor([1,2,20,20])
 #a = NNbuilder(input_dim=inpute)
 a = NNbuilder(config=config)
 
 print(a(torch.rand(tuple(inpute))))
-'''
 
 
 

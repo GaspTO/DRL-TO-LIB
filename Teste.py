@@ -11,6 +11,7 @@ from environments.Gomoku import GomokuEnv
 from utilities.data_structures.Config import Config
 from agents.Base_Agent import Base_Agent, Config_Base_Agent
 from agents.policy_gradient_agents.REINFORCE import REINFORCE, Config_Reinforce
+from agents.policy_gradient_agents.REINFORCE_Baseline import REINFORCE_Baseline, Config_Reinforce_Baseline
 from logic.Logic_Loss_Reinforce import Logic_Loss_Reinforce
 from agents.DQN_agents.DDQN import DDQN, Config_DDQN
 from agents.DQN_agents.DQN import DQN, Config_DQN
@@ -42,7 +43,7 @@ config.use_GPU = False
 config_base_agent = Config_Base_Agent(config)
 config_base_agent.batch_size = 1
 config_base_agent.clip_rewards = False
-config_base_agent.architecture = (("Linear",30,"Sigmoid"),("Linear",30,"Sigmoid"),("Linear",30,"Sigmoid"),("Linear",30,"Sigmoid"))
+config_base_agent.architecture = (("Linear",30,"Sigmoid"),("Linear",30,"Sigmoid"),("Linear",1,"Sigmoid"))
 config_base_agent.input_dim = None 
 config_base_agent.output_size = None
 config_base_agent.is_mask_needed = True
@@ -53,6 +54,9 @@ config.epsilon_decay_rate_denominator = 1
 config_reinforce = Config_Reinforce(config_base_agent)
 config_reinforce.discount_rate = 0.99
 config_reinforce.learning_rate = 1
+
+""" Config_Reinforce_Baseline """
+config_reinforce_baseline = Config_Reinforce_Baseline(config_reinforce)
 
 """ Config DQN """
 config_DQN = Config_DQN(config_base_agent)
@@ -76,8 +80,9 @@ config_A3C = Config_A3C(config_base_agent)
 
 
 
-agent = REINFORCE(config_reinforce) #2734
-#agent = Logic_Loss_Reinforce(config_reinforce)
+agent = REINFORCE(config_reinforce)
+agent = REINFORCE_Baseline(config_reinforce_baseline)
+#agent = Logic_Loss_Reinforce(config_reinforce) 
 #agent = DQN(config_DQN)
 #agent = DDQN(config_DDQN)
 #agent = A3C(config_A3C)
