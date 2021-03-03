@@ -32,21 +32,17 @@ class REINFORCE(Base_Agent):
         Base_Agent.__init__(self, config)
         self.policy = self.create_NN_through_NNbuilder(input_dim=self.input_shape, output_size=self.action_size,smoothing=0.001)
         self.optimizer = optim.Adam(self.policy.parameters(), lr=self.config.get_learning_rate())
-        self.episode_rewards = []
-        self.episode_log_probabilities = []
 
     def reset_game(self):
         """Resets the game information so we are ready to play a new episode"""
         super().reset_game()
-        self.episode_log_probabilities = []
+        self.episode_action_log_probabilities = []
         self.episode_step_number = 0
 
     def step(self):
         """Runs a step within a game including a learning step if required"""
         while not self.done:
             self.pick_and_conduct_action_and_save_log_probabilities()
-            #self.update_next_state_reward_done_and_score()
-            self.store_reward()
             if self.time_to_learn():
                 self.actor_learn()
             self.state = self.next_state #this is to set the state for the next iteration
@@ -56,10 +52,9 @@ class REINFORCE(Base_Agent):
     def pick_and_conduct_action_and_save_log_probabilities(self):
         """Picks and then conducts actions. Then saves the log probabilities of the actions it conducted to be used for
         learning later"""
-        action, log_probabilities = self.pick_action_and_get_log_probabilities()
+        self.action, log_probabilities = self.pick_action_and_get_log_probabilities()
         self.store_log_probabilities(log_probabilities)
-        self.store_action(action)
-        self.conduct_action(action)
+        self.conduct_action(self.action)
 
     def pick_action_and_get_log_probabilities(self):
         """Picks actions and then calculates the log probabilities of the actions it picked given the policy"""
@@ -116,19 +111,14 @@ class REINFORCE(Base_Agent):
         return policy_loss
         
 
+    """ store in list """
+    def store_action_log_probability(self, action_log_probability):
+        """Stores the log probability of picked actions to be used for learning later"""
+        self.episode_log_probabilities.append(action_log_probability)
 
-    """ Storage """
-    def store_log_probabilities(self, log_probabilities):
-        """Stores the log probabilities of picked actions to be used for learning later"""
-        self.episode_log_probabilities.append(log_probabilities)
-
-    def store_action(self, action):
-        """Stores the action picked"""
-        self.action = action
-
-    def store_reward(self):
-        """Stores the reward picked"""
-        self.episode_rewards.append(self.reward)
+    """ get in lists """
+    def get_episode_action_log_probabilities(self):
+        return self.episode_log_probabilities
 
 
     

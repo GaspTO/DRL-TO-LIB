@@ -52,8 +52,9 @@ config.epsilon_decay_rate_denominator = 1
 
 """ Config_Reinforce """
 config_reinforce = Config_Reinforce(config_base_agent)
-config_reinforce.discount_rate = 0.99
-config_reinforce.learning_rate = 1
+config_reinforce.discount_rate = 1
+config_reinforce.learning_rate = 0.90
+
 
 """ Config_Reinforce_Baseline """
 config_reinforce_baseline = Config_Reinforce_Baseline(config_reinforce)
@@ -86,6 +87,7 @@ agent = REINFORCE_Baseline(config_reinforce_baseline)
 #agent = DQN(config_DQN)
 #agent = DDQN(config_DDQN)
 #agent = A3C(config_A3C)
+
 game_scores, rolling_scores, time_taken = agent.run_n_episodes(num_episodes=5000)
 
 

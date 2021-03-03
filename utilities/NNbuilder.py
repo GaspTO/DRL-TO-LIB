@@ -101,7 +101,7 @@ class NNbuilder(nn.Module):
 
 
 
-
+'''
 config = {
     "input_dim": (1,2,20,20),
     "architecture": (("Conv2d",2,2,1,"ReLU"),
@@ -116,7 +116,7 @@ architecture = (("Conv2d",2,2,1,"ReLU"),
         ("Linear",5,"ReLU"),
         ("Linear",15,"ReLU"),
         ("Linear",1,"ReLU"))
-output_dim
+output = ((12,"Softmax"),()
 
 inpute = torch.tensor([1,2,20,20])
 #a = NNbuilder(input_dim=inpute)
@@ -125,6 +125,6 @@ a = NNbuilder(config=config)
 print(a(torch.rand(tuple(inpute))))
 
 
-
+'''
 
 

@@ -90,6 +90,7 @@ class Config_Base_Agent(Config):
 
 class Base_Agent(object):
 
+
     prepared_games = ["CartPole","Gomoku"]
 
     def __init__(self, config: Config_Base_Agent):
@@ -131,6 +132,7 @@ class Base_Agent(object):
         """Resets the game information so we are ready to play a new episode"""
         self.environment.seed(self.config.get_seed())
         self.state = self.environment.reset()
+        
         self.next_state = None
         self.action = None
         self.reward = None
@@ -149,14 +151,15 @@ class Base_Agent(object):
 
     def conduct_action(self, action):
         """Conducts an action in the environment"""
-        self.next_state, self.reward, self.done, _ = self.environment.step(action)
-        self.total_episode_score_so_far += self.reward
-        if self.config.get_clip_rewards(): self.reward =  max(min(self.reward, 1.0), -1.0)
+        next_state, reward, done, _ = self.environment.step(action)
+        self.set_next_state(next_state)
+        self.set_reward(reward)
+        self.set_done(done)
+        self.total_episode_score_so_far += self.get_reward()
+        if self.config.get_clip_rewards(): self.set_reward( max(min(self.get_reward(), 1.0), -1.0))
         if(self.done == True):
-            self.logger.info("Game ended -- Final state {}".format(self.next_state))
-            #self.logger.info("Game ended -- Final state {}".format(self.episode_states))
-            self.logger.info("reward: {}".format(self.reward))
-
+            self.logger.info("Game ended -- Final state {}".format(self.get_next_state()))
+            self.logger.info("reward: {}".format(self.get_reward()))
 
     def get_environment_title(self):
         """Extracts name of environment from it"""
@@ -440,6 +443,97 @@ class Base_Agent(object):
             learning_rate = g['lr']
             break
         self.logger.info("Learning Rate {}".format(learning_rate))
+
+
+    """ setters """
+    def set_state(self,state):
+        self.state = state
+        self.store_state(state)
+    
+    def set_next_state(self,next_state):
+        self.next_state = next_state
+        self.store_next_state(next_state)
+
+    def set_action(self,action):
+        self.action = action
+        self.store_action(action)
+
+    def set_reward(self,reward):
+        self.reward = reward
+        self.store_reward(reward)
+
+    def set_done(self,done):
+        self.done = done
+        self.store_done(done)   
+
+
+    """ getters """
+    def get_state(self):
+        return self.state 
+    
+    def get_next_state(self):
+        return self.next_state
+
+    def get_action(self):
+        return self.action
+
+    def get_reward(self):
+        return self.reward
+
+    def get_done(self):
+        return self.done 
+
+
+    """ storage in lists """
+    def store_state(self,state):
+        self.episode_states.append(state)
+    
+    def store_reward(self,reward):
+        self.episode_rewards.append(reward)
+
+    def store_action(self,action):
+        self.episode_actions.append(action)
+
+    def store_next_state(self,next_state):
+        self.episode_next_states.append(next_state)
+    
+    def store_done(self,done):
+        self.episode_dones.append(done)
+    
+    def store_desired_goal(self,desired_goal):
+        self.episode_desired_goals.append(desired_goal)
+
+    def store_achieved_goal(self,achieved_goal):
+        self.episode_achieved_goals.append(achieved_goal)
+    
+    def store_observation(self,observation):
+        self.episode_observations.append(observation)
+
+
+    """ get in lists """
+    def get_episode_states(self):
+        return self.episode_states
+
+    def get_episode_actions(self):
+        return self.episode_actions
+
+    def get_episode_rewards(self):
+        return self.episode_rewards
+        
+    def get_episode_next_states(self):
+        return self.episode_next_states
+
+    def get_episode_dones(self):
+        return self.episode_dones
+
+    def get_episode_desired_goals(self):
+        return self.episode_desired_goals
+
+    def get_episode_achieved_goals(self):
+        return self.episode_achieved_goals
+
+    def get_episode_observations(self):
+        return self.episode_observations
 
     """ Other """
     @staticmethod
