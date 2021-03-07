@@ -6,8 +6,6 @@ import random
 import numpy as np
 import torch
 import time
-from nn_builder.pytorch.NN import NN
-from utilities.NNbuilder import NNbuilder
 from torch.utils.tensorboard import SummaryWriter
 from torch.optim import optimizer
 
