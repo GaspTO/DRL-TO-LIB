@@ -13,15 +13,19 @@ from agents.Base_Agent import Base_Agent, Config_Base_Agent
 from agents.policy_gradient_agents.REINFORCE import REINFORCE, Config_Reinforce
 from agents.policy_gradient_agents.REINFORCE_Baseline import REINFORCE_Baseline, Config_Reinforce_Baseline
 from logic.Logic_Loss_Reinforce import Logic_Loss_Reinforce
+from logic.REINFORCE_Tree import REINFORCE_Tree, Config_Reinforce_Tree
 from agents.DQN_agents.DDQN import DDQN, Config_DDQN
 from agents.DQN_agents.DQN import DQN, Config_DQN
 from agents.actor_critic_agents.A3C import A3C, Config_A3C
+import random
 
+seed = random.randint(1, 1000)
+print("seed=" + str(seed))
 
 """ Config """
 config = Config()
 config.debug_mode = False
-config.environment = GomokuEnv('black','random',9)
+config.environment = GomokuEnv('black','beginner',9)
 config.file_to_save_data_results = "results/data_and_graphs/Cart_Pole_Results_Data.pkl"
 config.file_to_save_results_graph = "results/data_and_graphs/Cart_Pole_Results_Graph.png"
 config.hyperparameters = None
@@ -33,7 +37,7 @@ config.runs_per_agent = 1
 config.visualise_individual_results = False
 config.visualise_overall_results = False
 config.save_model = False
-config.seed = 1
+config.seed = seed
 config.show_solution_score = False
 config.standard_deviation_results = 1.0
 config.use_GPU = False
@@ -41,7 +45,7 @@ config.use_GPU = False
 
 """ Config_Base_Agent """
 config_base_agent = Config_Base_Agent(config)
-config_base_agent.batch_size = 1
+config_base_agent.batch_size = 16
 config_base_agent.clip_rewards = False
 config_base_agent.architecture = (("Linear",30,"Sigmoid"),("Linear",30,"Sigmoid"),("Linear",1,"Sigmoid"))
 config_base_agent.input_dim = None 
@@ -52,8 +56,11 @@ config.epsilon_decay_rate_denominator = 1
 
 """ Config_Reinforce """
 config_reinforce = Config_Reinforce(config_base_agent)
-config_reinforce.discount_rate = 1
+config_reinforce.discount_rate = 0.95
 config_reinforce.learning_rate = 0.90
+
+""" Config_Reinforce_Tree """
+config_reinforce_tree = Config_Reinforce_Tree(config_reinforce)
 
 
 """ Config_Reinforce_Baseline """
@@ -63,7 +70,6 @@ config_reinforce_baseline = Config_Reinforce_Baseline(config_reinforce)
 config_DQN = Config_DQN(config_base_agent)
 config_DQN.buffer_size = 40000
 config_DQN.discount_rate = 0.99
-config_DQN.gradient_clipping_norm = 0.7
 config_DQN.learning_iterations = 1
 config_DQN.learning_rate = 0.01
 config_DQN.update_every_n_steps = 1
@@ -71,6 +77,7 @@ config_DQN.update_every_n_steps = 1
 """ Config DQN With Fixed Targets """
 config_DQN_wft = Config_DQN_With_Fixed_Q_Targets(config_DQN)
 config_DQN_wft.tau = 0.01
+config_DQN.reset_every_n_steps = 1
 
 """ Config DDQN """
 config_DDQN = Config_DDQN(config_DQN_wft)
@@ -82,11 +89,13 @@ config_A3C = Config_A3C(config_base_agent)
 
 
 agent = REINFORCE(config_reinforce)
-agent = REINFORCE_Baseline(config_reinforce_baseline)
+#agent = REINFORCE_Baseline(config_reinforce_baseline)
 #agent = Logic_Loss_Reinforce(config_reinforce) 
+agent = REINFORCE_Tree(config_reinforce)
+
 #agent = DQN(config_DQN)
 #agent = DDQN(config_DDQN)
-#agent = A3C(config_A3C)
+#agent = A3C(config_A3C) #todo
 
 game_scores, rolling_scores, time_taken = agent.run_n_episodes(num_episodes=5000)
 

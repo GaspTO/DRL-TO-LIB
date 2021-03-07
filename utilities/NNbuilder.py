@@ -2,7 +2,18 @@ import torch
 import torch.tensor as tensor
 import torch.nn as nn
 
+
+
+
+
+
+
+
+
+
+
 class NNbuilder(nn.Module):
+
 
 
 
@@ -80,18 +91,13 @@ class NNbuilder(nn.Module):
     def add_output_layer(self):
         self.add_Linear_layer(self.output_size,"Softmax",{"dim":1})
 
-    def forward(self,x,mask=None):
+    def forward(self,x):
         for operation_set in zip(self.secondary_operations,self.model):
             if(operation_set[0] is not None):
                 for second_op in operation_set[0]:
                     x = second_op(x)
             x = operation_set[1](x)
         
-        x = x + self.smoothing
-        if(mask != None):
-            raise ValueError("I'm masking where I shouldn't")
-            x = x.mul(mask)
-        x = x/x.sum()
         return x
 
         

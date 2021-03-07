@@ -75,7 +75,7 @@ class SAC(Base_Agent):
         if self.add_extra_noise: self.noise.reset()
 
     def step(self):
-        """Runs an episode on the game, saving the experience and running a learning step if appropriate"""
+        """Runs an episode on the game, saving the transition and running a learning step if appropriate"""
         eval_ep = self.episode_number % TRAINING_EPISODES_PER_EVAL_EPISODE == 0 and self.do_evaluation_iterations
         self.episode_step_number_val = 0
         while not self.done:
@@ -86,7 +86,7 @@ class SAC(Base_Agent):
                 for _ in range(self.hyperparameters["learning_updates_per_learning_session"]):
                     self.learn()
             mask = False if self.episode_step_number_val >= self.environment._max_episode_steps else self.done
-            if not eval_ep: self.save_experience(experience=(self.state, self.action, self.reward, self.next_state, mask))
+            if not eval_ep: self.save_transition(transition=(self.state, self.action, self.reward, self.next_state, mask))
             self.state = self.next_state
             self.global_step_number += 1
         print(self.total_episode_score_so_far)
@@ -135,14 +135,14 @@ class SAC(Base_Agent):
         return action, log_prob, torch.tanh(mean)
 
     def time_for_critic_and_actor_to_learn(self):
-        """Returns boolean indicating whether there are enough experiences to learn from and it is time to learn for the
+        """Returns boolean indicating whether there are enough transitions to learn from and it is time to learn for the
         actor and critic"""
         return self.global_step_number > self.hyperparameters["min_steps_before_learning"] and \
-               self.enough_experiences_to_learn_from() and self.global_step_number % self.hyperparameters["update_every_n_steps"] == 0
+               self.enough_transitions_to_learn_from() and self.global_step_number % self.hyperparameters["update_every_n_steps"] == 0
 
     def learn(self):
         """Runs a learning iteration for the actor, both critics and (if specified) the temperature parameter"""
-        state_batch, action_batch, reward_batch, next_state_batch, mask_batch = self.sample_experiences()
+        state_batch, action_batch, reward_batch, next_state_batch, mask_batch = self.sample_transitions()
         qf1_loss, qf2_loss = self.calculate_critic_losses(state_batch, action_batch, reward_batch, next_state_batch, mask_batch)
         self.update_critic_parameters(qf1_loss, qf2_loss)
 
@@ -151,7 +151,7 @@ class SAC(Base_Agent):
         else: alpha_loss = None
         self.update_actor_parameters(policy_loss, alpha_loss)
 
-    def sample_experiences(self):
+    def sample_transitions(self):
         return  self.memory.sample()
 
     def calculate_critic_losses(self, state_batch, action_batch, reward_batch, next_state_batch, mask_batch):

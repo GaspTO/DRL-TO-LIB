@@ -22,7 +22,7 @@ class Config(object):
             self.standard_deviation_results = config.get_standard_deviation_results()
             self.use_GPU = config.get_use_GPU()
         else:          
-            self.debug_mode = False
+            self.debug_mode = True
             self.environment = None
             self.file_to_save_data_results = None
             self.file_to_save_results_graph = None
@@ -39,8 +39,6 @@ class Config(object):
             self.show_solution_score = False
             self.standard_deviation_results = 1.0
             self.use_GPU = None
-        
-        
         
     def get_seed(self):
         if(self.seed == None):
@@ -122,7 +120,8 @@ class Config(object):
         if(self.debug_mode == None):
             raise ValueError("Debug Mode Not Defined")
         return self.debug_mode
-    
+
+
 
     
     

@@ -40,7 +40,7 @@ class Epsilon_Greedy_Exploration(Base_Exploration_Strategy):
 
         if (random.random() > epsilon or turn_off_exploration) and (episode_number >= self.random_episodes_to_run):
             return torch.argmax(action_values).item()
-        elif(action_info['mask'] is not None):
+        elif('mask' in action_info):
             mask = action_info["mask"]
             idx_mask = torch.where(mask == 1)[0]
             a = np.random.randint(0, len(idx_mask))

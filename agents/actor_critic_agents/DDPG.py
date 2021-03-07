@@ -36,15 +36,15 @@ class DDPG(Base_Agent):
             self.conduct_action(self.action)
             if self.time_for_critic_and_actor_to_learn():
                 for _ in range(self.hyperparameters["learning_updates_per_learning_session"]):
-                    states, actions, rewards, next_states, dones = self.sample_experiences()
+                    states, actions, rewards, next_states, dones = self.sample_transitions()
                     self.critic_learn(states, actions, rewards, next_states, dones)
                     self.actor_learn(states)
-            self.save_experience()
+            self.save_transition()
             self.state = self.next_state #this is to set the state for the next iteration
             self.global_step_number += 1
         self.episode_number += 1
 
-    def sample_experiences(self):
+    def sample_transitions(self):
         return self.memory.sample()
 
     def pick_action(self, state=None):
@@ -95,9 +95,9 @@ class DDPG(Base_Agent):
         return critic_expected
 
     def time_for_critic_and_actor_to_learn(self):
-        """Returns boolean indicating whether there are enough experiences to learn from and it is time to learn for the
+        """Returns boolean indicating whether there are enough transitions to learn from and it is time to learn for the
         actor and critic"""
-        return self.enough_experiences_to_learn_from() and self.global_step_number % self.hyperparameters["update_every_n_steps"] == 0
+        return self.enough_transitions_to_learn_from() and self.global_step_number % self.hyperparameters["update_every_n_steps"] == 0
 
     def actor_learn(self, states):
         """Runs a learning iteration for the actor"""
