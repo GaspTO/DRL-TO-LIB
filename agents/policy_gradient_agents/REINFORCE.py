@@ -47,14 +47,18 @@ class Policy_Re(nn.Module):
             nn.Linear(30,1)
         )
 
-    def forward(self, x):
+    def forward(self, x, mask=None):
         # in lightning, forward defines the prediction/inference actions
         self.x1 = x.view(x.size(0),-1)
         self.x2 = self.one(self.x1)
 
 
         self.actions1 = self.actions(self.x2)
+        if(mask is not None):
+            #self.actions1 = self.actions1.mul((1-mask)*1e-8 + mask)
+            self.actions1 = self.actions1.mul(mask)
         self.actions2 = torch.softmax(self.actions1,dim=1)
+        
         #self.actions3 = (self.actions2 + smoothing) 
         #self.actions4 = self.actions3/self.actions3.sum()
 
@@ -67,6 +71,8 @@ class Policy_Re(nn.Module):
         
         #critic = self.critic(self.x2)
         #return self.actions2,critic
+
+
         return self.actions2
 
     def configure_optimizers(self):
