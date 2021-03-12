@@ -10,7 +10,7 @@ MCTS_SECOND_PLAYER = -1
 MCTS_TIE = 0
 
 class MCTSNode():
-    def __init__(self,parent_node=None,parent_action=None,terminal=None,legal_actions=None,content: dict = {}):
+    def __init__(self,state,parent_node=None,parent_action=None,terminal=None,legal_actions=None,content: dict = {}):
         self.parent_node = parent_node
         self.parent_action = parent_action
         self.successors = []
@@ -19,6 +19,14 @@ class MCTSNode():
         self.all_legal_actions = legal_actions
         self.non_expanded_legal_actions = legal_actions
         self.content = content
+        ### aux
+        self.num_wins = 0
+        self.num_losses = 0
+        self.num_draws = 0
+        self.num_chosen_by_parent = 0
+        self.belongs_to_tree = None
+        self.state = state
+
 
  
     def find_successor_after_action(self,action, content = {}):
@@ -106,12 +114,12 @@ class MCTSNode():
 
 class Gomoku_MCTSNode(MCTSNode):
     def __init__(self,state, parent_node=None, parent_action=None, terminal=None,legal_actions=None,content: dict = {}):
-        super().__init__(parent_node=parent_node, parent_action=parent_action, terminal=terminal, legal_actions=legal_actions, content = content)
-        self.set_content_item('state',state)
+        super().__init__(state,parent_node=parent_node, parent_action=parent_action, terminal=terminal, legal_actions=legal_actions, content = content)
+      
 
         
     def find_successor_after_action(self,action,content = {}):
-        new_state = self.get_content_item('state').act(action)
+        new_state = self.state.act(action)
         terminal = new_state.board.is_terminal()
         legal_actions = new_state.board.get_legal_action()
         return Gomoku_MCTSNode(new_state,parent_node = self,parent_action=action,\
@@ -121,7 +129,7 @@ class Gomoku_MCTSNode(MCTSNode):
         if(self.all_legal_actions != None):
             return self.all_legal_actions
         else:
-            self.all_legal_actions = self.get_content_item('state').board.get_legal_action()
+            self.all_legal_actions = self.state.board.get_legal_action()
             self.non_expanded_legal_actions = self.all_legal_actions
             return self.all_legal_actions
 
@@ -130,28 +138,27 @@ class Gomoku_MCTSNode(MCTSNode):
 
 class K_Row_MCTSNode(MCTSNode):
     def __init__(self,state, parent_node=None, parent_action=None, terminal=None,legal_actions=None,content: dict = {}):
-        super().__init__(parent_node=parent_node, parent_action=parent_action, terminal=terminal, legal_actions=legal_actions, content = content)
-        self.set_content_item('state',state)
+        super().__init__(state,parent_node=parent_node, parent_action=parent_action, terminal=terminal, legal_actions=legal_actions, content = content)
         self.terminal = state.is_terminal()
         
     def find_successor_after_action(self,action,content = {}):
-        new_state = self.get_content_item('state').act(action)
+        new_state = self.state.act(action)
         terminal = new_state.is_terminal()
         legal_actions = list(new_state.get_valid())
-        return (K_Row_MCTSNode(new_state,parent_node = self,parent_action=action,terminal = terminal, legal_actions = legal_actions,content = content)
-                ,0)
+        return K_Row_MCTSNode(new_state,parent_node = self,parent_action=action,terminal = terminal, legal_actions = legal_actions,content = content)
+                
 
     def get_all_legal_actions(self):
         if(self.all_legal_actions != None):
             return self.all_legal_actions
         else:
-            self.all_legal_actions = list(self.get_content_item('state').get_valid())
+            self.all_legal_actions = list(self.state.get_valid())
             self.non_expanded_legal_actions = self.all_legal_actions
             return self.all_legal_actions
 
     def is_terminal(self):
         if self.terminal is None:
-            self.terminal = self.get_content_item('state').is_terminal()
+            self.terminal = self.state.is_terminal()
         else:
             return self.terminal
 
@@ -159,12 +166,11 @@ class K_Row_MCTSNode(MCTSNode):
         if not self.is_terminal():
             raise ValueError("Node is not Terminal")
         else:
-            state =  self.get_content_item('state')
-            if(state.winner == FIRST_PLAYER):
+            if(self.state.winner == FIRST_PLAYER):
                 return MCTS_FIRST_PLAYER
-            elif(state.winner == SECOND_PLAYER):
+            elif(self.state.winner == SECOND_PLAYER):
                 return MCTS_SECOND_PLAYER
-            elif(state.winner == TIE):
+            elif(self.state.winner == TIE):
                 return MCTS_TIE
             else:
                 raise ValueError("Some weird value was returned in who_won")

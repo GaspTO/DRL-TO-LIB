@@ -19,13 +19,10 @@ import random
 class MCTS_Search():
     def __init__(self,root, initial_variables = {}):
         self.root = root
-        self.root.set_content_item('times_parent_won', 0.)
-        self.root.set_content_item('times_chosen_by_parent', 0.)
-        self.root.set_content_item('belongs_to_tree',True)
+        self.root.belongs_to_tree = True
         self.current_node = self.root
         self.variables = initial_variables
         self.exploration_weight = 1
-
 
     def run_n_playouts(self,iterations):
         for n in range(iterations):
@@ -44,10 +41,12 @@ class MCTS_Search():
             #print("Sel:\n" + str(self.current_node.get_content_item('state').board) )
 
     def selection_criteria(self):
-            log_N_vertex = log(self.current_node.get_content_item("times_chosen_by_parent"))
+            log_N_vertex = log(self.current_node.num_chosen_by_parent)
             def uct(node):
-                return node.get_content_item("times_parent_won") / node.get_content_item("times_chosen_by_parent") + \
-                    self.exploration_weight * sqrt(log_N_vertex / node.get_content_item("times_chosen_by_parent"))
+                assert node.num_chosen_by_parent == node.num_losses + node.num_draws + node.num_wins
+                opponent_losses = node.num_losses + 0.5 * node.num_draws
+                return opponent_losses / node.num_chosen_by_parent + \
+                    self.exploration_weight * sqrt(log_N_vertex / node.num_chosen_by_parent)
             return max(self.current_node.get_successors(), key=uct) 
 
     ''' Expansion Phase '''
@@ -57,7 +56,9 @@ class MCTS_Search():
             #print("Ex:\n" + str(self.current_node.get_content_item('state').board) )
 
     def expansion_criteria(self):
-            return self.current_node.expand_random_successor({'times_chosen_by_parent':0., 'times_parent_won':0., 'belongs_to_tree':True})
+            node = self.current_node.expand_random_successor()
+            node.belongs_to_tree = True
+            return node
 
     ''' Simulation Phase '''
     def simulation_phase(self):
@@ -66,7 +67,9 @@ class MCTS_Search():
             #print("Sim:\n" + str(self.current_node.get_content_item('state').board) )
 
     def fast_generation_policy(self):
-            return self.current_node.find_random_unexpanded_successor({'belongs_to_tree':False})
+            node = self.current_node.find_random_unexpanded_successor()
+            node.belongs_to_tree = False
+            return node
 
     ''' Backpropagation Phase '''
     def backpropagation_phase(self):
@@ -77,12 +80,12 @@ class MCTS_Search():
         elif(winner == MCTS_SECOND_PLAYER):
             self.winner = 1
         elif(winner == MCTS_TIE):
-            self.winner = NaN #no winner
+            self.winner = None #no winner
         else:
             raise ValueError("Some weird value returned in who won in backpropagation phase")
         
         
-        if(self.winner == -1):
+        if(self.winner == None):
             print("TIE")
             #print("TIE\n" + str(self.last_node.get_content_item('state').board))
         if(self.winner == 0):
@@ -99,17 +102,17 @@ class MCTS_Search():
         self.backpropagate_update_nodes()
 
     def backpropagate_update_nodes(self):
-        if self.current_node.get_content_item("belongs_to_tree") is False:
+        if self.current_node.belongs_to_tree == False:
             return
-        if self.winner == NaN:
-            times_parent_won = self.current_node.get_content_item("times_parent_won")
-            self.current_node.set_content_item("times_parent_won",times_parent_won + 0.5)
+        if self.winner == None:
+            self.current_node.num_draws += 1
         elif self.winner == self.current_node.get_depth() % 2 and self.winner >= 0:
-            times_parent_won = self.current_node.get_content_item("times_parent_won")
-            self.current_node.set_content_item("times_parent_won",times_parent_won + 1)
-
-        times_chosen_by_parent = self.current_node.get_content_item("times_chosen_by_parent")
-        self.current_node.set_content_item("times_chosen_by_parent",times_chosen_by_parent + 1)
+            self.current_node.num_wins += 1
+        elif self.winner == (self.current_node.get_depth() + 1) % 2 and self.winner >= 0:
+            self.current_node.num_losses += 1
+        else:
+            raise ValueError("Weird Value in backpropagate update node")
+        self.current_node.num_chosen_by_parent += 1
 
 
 
