@@ -7,6 +7,7 @@ from torch.utils.data import random_split
 from torchvision.datasets import MNIST
 from torchvision import transforms
 import pytorch_lightning as pl
+import numpy
 
 class Net(nn.Module):
 	def __init__(self):
@@ -56,7 +57,7 @@ def AND_op(x_tensor,y_tensor):
 def OR_op(x_tensor,y_tensor):
     return max(x_tensor,y_tensor)
 
-class AND_OR_unit(nn.module):
+
     
 
 def AND_OR_unit(x_tensor,y_tensor):

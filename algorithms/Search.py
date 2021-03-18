@@ -7,7 +7,7 @@ import numpy
 from numpy.core.numeric import NaN, normalize_axis_tuple
 from environments.Gomoku import GomokuEnv
 from environments.K_Row import K_RowEnv
-from algorithms.Node import Gomoku_MCTSNode, K_Row_MCTSNode, MCTS_FIRST_PLAYER, MCTS_TIE, MCTS_SECOND_PLAYER
+from algorithms.Node import Gomoku_MCTSNode, K_Row_MCTSNode, MCTS_FIRST_PLAYER, MCTS_TIE, MCTS_SECOND_PLAYER, MCTS_WIN, MCTS_LOSS
 from collections import deque
 from math import sqrt,log
 import random
@@ -17,12 +17,26 @@ import random
       
 ''' Search Engine '''
 class MCTS_Search():
-    def __init__(self,root, initial_variables = {}):
+    def __init__(self,root, initial_variables = {}, debug = False):
         self.root = root
         self.root.belongs_to_tree = True
         self.current_node = self.root
         self.variables = initial_variables
         self.exploration_weight = 1
+        self.debug = debug
+
+    def play_action(self, debug = False):
+            def score(node):
+                if node.num_chosen_by_parent == 0:
+                    return float("-inf")  # avoid unseen moves
+                return (node.num_losses + 0.5*node.num_draws) / node.num_chosen_by_parent  # choose the board that made the opponent lose the most
+            best_action =  max(self.root.get_successors(), key=score).parent_action
+
+            if(self.debug == True or debug == True):
+                for n in self.root.get_successors():
+                    print("action:" + str(n.parent_action) + " score:" + str(score(n)))
+                print("best action chosen:" +  str(best_action))
+            return best_action
 
     def run_n_playouts(self,iterations):
         for n in range(iterations):
@@ -30,8 +44,6 @@ class MCTS_Search():
             self.expansion_phase()
             self.simulation_phase()
             self.backpropagation_phase()
-            if(n>= 300000):
-                print(self.current_node.get_content_item('num_'))
 
 
     ''' Selection Phase '''
@@ -75,6 +87,15 @@ class MCTS_Search():
     def backpropagation_phase(self):
         self.last_node = self.current_node
         winner = self.current_node.who_won()
+        if(winner == MCTS_TIE):
+            self.winner = None
+        elif(winner == MCTS_WIN):
+            self.winner = self.current_node.get_depth() % 2
+            raise ValueError("Weird Value")
+        elif(winner == MCTS_LOSS):
+            self.winner = (self.current_node.get_depth() -1) % 2 
+            assert self.winner >= 0
+        '''
         if(winner == MCTS_FIRST_PLAYER):
             self.winner = 0
         elif(winner == MCTS_SECOND_PLAYER):
@@ -83,17 +104,16 @@ class MCTS_Search():
             self.winner = None #no winner
         else:
             raise ValueError("Some weird value returned in who won in backpropagation phase")
+        '''
         
-        
-        if(self.winner == None):
-            print("TIE")
-            #print("TIE\n" + str(self.last_node.get_content_item('state').board))
-        if(self.winner == 0):
-            print("FIRST")
-            #print("FIRST\n" + str(self.last_node.get_content_item('state').board))
-        if(self.winner == 1):
-            print("SECOND")
-            #print("SECOND\n" + str(self.last_node.get_content_item('state').board))
+        if(self.debug == True):
+            if(self.winner == None):
+                print("TIE")
+            if(self.winner == 0):
+                print("FIRST")
+            if(self.winner == 1):
+                print("SECOND")
+
 
 
         while not self.current_node.is_root():
@@ -117,7 +137,21 @@ class MCTS_Search():
 
 
 
-''' Gomoku 
+
+'''
+env = K_RowEnv(board_shape=3, target_length=3)
+env.step(0)
+k_row_node = K_Row_MCTSNode(env.state)
+search = MCTS_Search(k_row_node,debug = True)
+search.run_n_playouts(100000)
+p = search.play_action(debug=True)
+print("hey " + str(p))
+print("c")
+'''
+
+
+
+''' Gomoku - Not going to work
 env = GomokuEnv('black','random',9)
 gom_node = Gomoku_Node(env.state)
 search = MCTS_Search(gom_node,num_of_players=2)
@@ -125,12 +159,3 @@ search.run_n_playouts(5000)
 print(search.root.get_content_item('num_wins'))
 print(search.root.get_content_item('num_visits'))
 '''
-
-
-env = K_RowEnv(board_shape=3, target_length=3)
-k_row_node = K_Row_MCTSNode(env.state)
-search = MCTS_Search(k_row_node)
-search.run_n_playouts(1000000)
-print(search.root.get_content_item('num_wins'))
-print(search.root.get_content_item('num_visits'))
-print("hey")

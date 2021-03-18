@@ -2,7 +2,7 @@ import copy
 import torch.nn as nn
 import torch
 from agents.Base_Agent import Base_Agent
-from agents.DQN_agents.DQN import DQN, Policy_DQN, Config_DQN
+from agents.DQN_agents.DQN import DQN, Config_DQN
 
 
 class Config_DQN_With_Fixed_Q_Targets(Config_DQN):
@@ -33,8 +33,7 @@ class DQN_With_Fixed_Q_Targets(DQN):
     agent_name = "DQN with Fixed Q Targets"
     def __init__(self, config):
         DQN.__init__(self, config)
-        #self.q_network_target = self.create_NN_through_NNbuilder(input_dim=self.input_shape, output_size=self.action_size,smoothing=0.001)
-        self.q_network_target = Policy_DQN()
+        self.q_network_target = self.config.architecture()
         Base_Agent.copy_model_over(from_model=self.q_network_local, to_model=self.q_network_target)
 
     def learn(self, transitions=None):

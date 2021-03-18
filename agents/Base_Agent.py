@@ -8,7 +8,6 @@ import torch
 import time
 from torch.utils.tensorboard import SummaryWriter
 from torch.optim import optimizer
-
 from utilities.data_structures.Config import Config
 
 
@@ -36,7 +35,6 @@ class Config_Base_Agent(Config):
             self.is_mask_needed = False
             self.random_episodes_to_run = 0
             self.epsilon_decay_rate_denominator = 1
-
 
     def get_batch_size(self):
         if(self.batch_size == None):
@@ -91,7 +89,7 @@ class Config_Base_Agent(Config):
         
 
 class Base_Agent(object):
-    prepared_games = ["CartPole","Gomoku"]
+    prepared_games = ["Gomoku","K_Row"]
     def __init__(self, config: Config_Base_Agent):
         self.setup_logger()
         self.debug_mode = config.get_debug_mode()
@@ -106,10 +104,8 @@ class Base_Agent(object):
         self.action_size = self.config.get_output_size()
         self.action_mask_required = self.config.get_is_mask_needed()
         self.input_shape = self.config.get_input_dim()
-        self.lowest_possible_episode_score = self.get_lowest_possible_episode_score()
         self.average_score_required_to_win = self.get_score_required_to_win()
         self.rolling_score_window = self.get_trials()
-        # self.max_steps_per_episode = self.environment.spec.max_episode_steps
         self.total_episode_score_so_far = 0
         self.game_full_episode_scores = []
         self.rolling_results = []
@@ -120,10 +116,9 @@ class Base_Agent(object):
         self.visualise_results_boolean = config.visualise_individual_results
         self.global_step_number = 0
         self.turn_off_exploration = False
-        gym.logger.set_level(40)  # stops it from printing an unnecessary warning
+        gym.logger.set_level(40)  
         self.log_game_info()
         
-
 
     """ Main Methods """
     def run_n_episodes(self, num_episodes=None, show_whether_achieved_goal=True, save_and_print_results=True):
@@ -133,10 +128,8 @@ class Base_Agent(object):
         while self.episode_number < num_episodes:
             self.reset_game()
             self.step()
-            if(self.debug_mode):
-                self.logger.info("Game ended -- State and Reward Sequence is:\n{}".format(self.pack_states_and_rewards_side_by_side()))
-            else:
-                self.logger.info("Game ended -- Last State:\n{}".format(self.episode_states[-1]))
+            if self.debug_mode == True: self.logger.info("Game ended -- State and Reward Sequence is:\n{}".format(self.pack_states_and_rewards_side_by_side()))
+            else: self.logger.info("Game ended -- Last State:\n{}".format(self.episode_states[-1]))
             if save_and_print_results: self.save_and_print_result()
             self.writer.flush()
         time_taken = time.time() - start
@@ -157,7 +150,7 @@ class Base_Agent(object):
         self.episode_achieved_goals = []
         self.episode_observations = []
         self.environment.seed(self.config.get_seed())
-        self.set_state(self.environment.reset())
+        self.state = self.environment.reset()
         self.next_state = None
         self.action = None
         self.reward = None
@@ -173,60 +166,19 @@ class Base_Agent(object):
     def conduct_action(self, action):
         """Conducts an action in the environment"""
         next_state, reward, done, _ = self.environment.step(action)
-        self.set_next_state(next_state)
-        self.set_reward(reward)
-        self.set_done(done)
-        self.total_episode_score_so_far += self.get_reward()
-        if self.config.get_clip_rewards(): self.set_reward( max(min(self.get_reward(), 1.0), -1.0))
+        self.episode_actions.append(action)
+        self.next_state = next_state
+        self.episode_next_states.append(self.next_state)
+        self.reward = reward
+        self.episode_rewards.append(self.reward)
+        self.done = done
+        self.episode_dones.append(self.done)
+        self.total_episode_score_so_far += self.reward
+        if self.config.get_clip_rewards(): self.reward =  max(min(self.reward, 1.0), -1.0)
         if(self.done == True):
           #  self.logger.info("Game ended -- State and Reward Sequence is:\n{}".format(self.pack_states_and_rewards_side_by_side()))
         #   self.logger.info("Game ended -- Final state {}".format(self.get_next_state()))
-            self.logger.info("final_reward: {}".format(self.get_reward()))
-
-    def get_environment_title(self):
-        """Extracts name of environment from it"""
-        try:
-            name = self.environment.unwrapped.id
-        except AttributeError:
-            try:
-                if str(self.environment.unwrapped)[1:11] == "FetchReach": return "FetchReach"
-                elif str(self.environment.unwrapped)[1:8] == "AntMaze": return "AntMaze"
-                elif str(self.environment.unwrapped)[1:7] == "Hopper": return "Hopper"
-                elif str(self.environment.unwrapped)[1:9] == "Walker2d": return "Walker2d"
-                else:
-                    name = self.environment.spec.id.split("-")[0]
-            except AttributeError:
-                name = str(self.environment.env)
-                if name[0:10] == "TimeLimit<": name = name[10:]
-                name = name.split(" ")[0]
-                if name[0] == "<": name = name[1:]
-                if name[-3:] == "Env": name = name[:-3]
-        return name
-
-    def get_score_required_to_win(self):
-        """Gets average score required to win game"""
-        print("TITLE ", self.environment_title)
-        if self.environment_title == "FetchReach": return -5
-        if self.environment_title in ["AntMaze", "Hopper", "Walker2d","Gomoku"]:
-            print("Score required to win set to infinity therefore no learning rate annealing will happen")
-            return float("inf")
-        try: return self.environment.unwrapped.reward_threshold
-        except AttributeError:
-            try:
-                return self.environment.spec.reward_threshold
-            except AttributeError:
-                return self.environment.unwrapped.spec.reward_threshold
-
-    def get_lowest_possible_episode_score(self):
-        """Returns the lowest possible episode score you can get in an environment"""
-        if self.environment_title == "Taxi": return -800
-        return None
-
-    def get_trials(self):
-        """Gets the number of trials to average a score over"""
-        if self.environment_title in ["AntMaze", "FetchReach", "Hopper", "Walker2d", "CartPole","Gomoku"]: return 100
-        try: return self.environment.unwrapped.trials
-        except AttributeError: return self.environment.spec.trials
+            self.logger.info("final_reward: {}".format(self.reward))
 
     def get_action_mask(self):
         if(self.action_mask_required == True):
@@ -234,45 +186,6 @@ class Base_Agent(object):
         else:
             return None
     
-    '''
-    def create_NN(self, input_dim, output_dim, key_to_use=None, override_seed=None, hyperparameters=None):
-        """Creates a neural network for the agents to use"""
-        if hyperparameters is None: hyperparameters = self.hyperparameters
-        if key_to_use: hyperparameters = hyperparameters[key_to_use]
-        if override_seed: seed = override_seed
-        else: seed = self.config.get_seed()
-
-        default_hyperparameter_choices = {"output_activation": None, "hidden_activations": "relu", "dropout": 0.0,
-                                          "initialiser": "default", "batch_norm": False,
-                                          "columns_of_data_to_be_embedded": [],
-                                          "embedding_dimensions": [], "y_range": ()}
-
-        for key in default_hyperparameter_choices:
-            if key not in hyperparameters.keys():
-                hyperparameters[key] = default_hyperparameter_choices[key]
-
-        return NN(input_dim=input_dim, layers_info=hyperparameters["linear_hidden_units"] + [output_dim],
-                  output_activation=hyperparameters["final_layer_activation"],
-                  batch_norm=hyperparameters["batch_norm"], dropout=hyperparameters["dropout"],
-                  hidden_activations=hyperparameters["hidden_activations"], initialiser=hyperparameters["initialiser"],
-                  columns_of_data_to_be_embedded=hyperparameters["columns_of_data_to_be_embedded"],
-                  embedding_dimensions=hyperparameters["embedding_dimensions"], y_range=hyperparameters["y_range"],
-                  random_seed=seed).to(self.device)
-    '''
-
-    def create_NN_through_NNbuilder(self,input_dim,output_size,smoothing):
-        return NNbuilder(architecture=self.config.architecture,input_dim=input_dim,output_size=output_size,smoothing=smoothing).to(self.device)
-
-    def turn_on_any_epsilon_greedy_exploration(self):
-        """Turns off all exploration with respect to the epsilon greedy exploration strategy"""
-        print("Turning on epsilon greedy exploration")
-        self.turn_off_exploration = False
-
-    def turn_off_any_epsilon_greedy_exploration(self):
-        """Turns off all exploration with respect to the epsilon greedy exploration strategy"""
-        print("Turning off epsilon greedy exploration")
-        self.turn_off_exploration = True
-
     def take_optimisation_step(self, optimizer, network, loss, clipping_norm=None, retain_graph=False):
         """Takes an optimisation step by calculating gradients given the loss and then updating the parameters"""
         optimizer.zero_grad() #reset gradients to 0
@@ -287,6 +200,7 @@ class Base_Agent(object):
     def soft_update_of_target_network(self, local_model, target_model, tau):
         """Updates the target network in the direction of the local network but by taking a step size
         less than one so the target network's parameter values trail the local networks. This helps stabilise training"""
+        if(local_model == target_model): raise ValueError("Can't update target model if it's the same as local model")
         for target_param, local_param in zip(target_model.parameters(), local_model.parameters()):
             target_param.data.copy_(tau*local_param.data + (1.0-tau)*target_param.data)
 
@@ -323,8 +237,59 @@ class Base_Agent(object):
         for param in network.parameters():
             param.requires_grad = True
 
+
+    ''' Helpful '''
+    def get_environment_title(self):
+        """Extracts name of environment from it"""
+        try:
+            name = self.environment.unwrapped.id
+        except AttributeError:
+            try:
+                if str(self.environment.unwrapped)[1:11] == "FetchReach": return "FetchReach"
+                elif str(self.environment.unwrapped)[1:8] == "AntMaze": return "AntMaze"
+                elif str(self.environment.unwrapped)[1:7] == "Hopper": return "Hopper"
+                elif str(self.environment.unwrapped)[1:9] == "Walker2d": return "Walker2d"
+                else:
+                    name = self.environment.spec.id.split("-")[0]
+            except AttributeError:
+                name = str(self.environment.env)
+                if name[0:10] == "TimeLimit<": name = name[10:]
+                name = name.split(" ")[0]
+                if name[0] == "<": name = name[1:]
+                if name[-3:] == "Env": name = name[:-3]
+        return name
+
+    def get_score_required_to_win(self):
+        """Gets average score required to win game"""
+        print("TITLE ", self.environment_title)
+        if self.environment_title == "FetchReach": return -5
+        if self.environment_title in ["AntMaze", "Hopper", "Walker2d","Gomoku","K_Row"]:
+            print("Score required to win set to infinity therefore no learning rate annealing will happen")
+            return float("inf")
+        try: return self.environment.unwrapped.reward_threshold
+        except AttributeError:
+            try:
+                return self.environment.spec.reward_threshold
+            except AttributeError:
+                return self.environment.unwrapped.spec.reward_threshold
+
+    def get_trials(self):
+        """Gets the number of trials to average a score over"""
+        if self.environment_title in ["AntMaze", "FetchReach", "Hopper", "Walker2d", "CartPole","Gomoku","K_Row"]: return 100
+        try: return self.environment.unwrapped.trials
+        except AttributeError: return self.environment.spec.trials
     
-     
+    def turn_on_any_epsilon_greedy_exploration(self):
+        """Turns off all exploration with respect to the epsilon greedy exploration strategy"""
+        print("Turning on epsilon greedy exploration")
+        self.turn_off_exploration = False
+
+    def turn_off_any_epsilon_greedy_exploration(self):
+        """Turns off all exploration with respect to the epsilon greedy exploration strategy"""
+        print("Turning off epsilon greedy exploration")
+        self.turn_off_exploration = True
+
+    
     """ Information """
     def setup_logger(self):
         """Sets up the logger"""
@@ -348,7 +313,7 @@ class Base_Agent(object):
 
     def log_game_info(self):
         """Logs info relating to the game"""
-        for ix, param in enumerate([self.environment_title, self.action_types, self.action_size, self.lowest_possible_episode_score,
+        for ix, param in enumerate([self.environment_title, self.action_types, self.action_size, 
                       self.input_shape, self.config.get_architecture(), self.average_score_required_to_win, self.rolling_score_window,
                       self.device]):
             self.logger.info("{} -- {}".format(ix, param))
@@ -452,7 +417,6 @@ class Base_Agent(object):
         self.save_max_result_seen()
 
 
-
     """ Replay Memory Storage Methods"""
     def sample_transitions(self):
         """Draws a random sample of transitions from the memory buffer"""
@@ -469,111 +433,6 @@ class Base_Agent(object):
     def enough_transitions_to_learn_from(self):
         """Boolean indicated whether there are enough transitions in the memory buffer to learn from"""
         return len(self.memory) > self.config.get_batch_size()
-
-
-
-    """ setters """
-    def set_state(self,state):
-        self.state = state
-        if(state is not None):
-            self.store_state(state)
-    
-    def set_next_state(self,next_state):
-        self.next_state = next_state
-        if(next_state is not None):
-            self.store_next_state(next_state)
-
-    def set_action(self,action):
-        self.action = action
-        if(action is not None):
-            self.store_action(action)
-
-    def set_reward(self,reward):
-        self.reward = reward
-        if(reward is not None):
-            self.store_reward(reward)
-
-    def set_done(self,done):
-        self.done = done
-        if(done is not None):
-            self.store_done(done)   
-
-
-    """ getters """
-    def get_state(self):
-        return self.state 
-    
-    def get_next_state(self):
-        return self.next_state
-
-    def get_action(self):
-        return self.action
-
-    def get_reward(self):
-        return self.reward
-
-    def get_done(self):
-        return self.done 
-
-
-    """ storage in lists """
-    def track_episodes_data(self):
-        """Saves the data from the recent episodes"""
-        self.episode_states.append(self.state)
-        self.episode_actions.append(self.action)
-        self.episode_rewards.append(self.reward)
-        self.episode_next_states.append(self.next_state)
-        self.episode_dones.append(self.done)
-
-    def store_state(self,state):
-        self.episode_states.append(state)
-    
-    def store_reward(self,reward):
-        self.episode_rewards.append(reward)
-
-    def store_action(self,action):
-        self.episode_actions.append(action)
-
-    def store_next_state(self,next_state):
-        self.episode_next_states.append(next_state)
-    
-    def store_done(self,done):
-        self.episode_dones.append(done)
-    
-    def store_desired_goal(self,desired_goal):
-        self.episode_desired_goals.append(desired_goal)
-
-    def store_achieved_goal(self,achieved_goal):
-        self.episode_achieved_goals.append(achieved_goal)
-    
-    def store_observation(self,observation):
-        self.episode_observations.append(observation)
-
-
-    """ get in lists """
-    def get_episode_states(self):
-        return self.episode_states
-
-    def get_episode_actions(self):
-        return self.episode_actions
-
-    def get_episode_rewards(self):
-        return self.episode_rewards
-        
-    def get_episode_next_states(self):
-        return self.episode_next_states
-
-    def get_episode_dones(self):
-        return self.episode_dones
-
-    def get_episode_desired_goals(self):
-        return self.episode_desired_goals
-
-    def get_episode_achieved_goals(self):
-        return self.episode_achieved_goals
-
-    def get_episode_observations(self):
-        return self.episode_observations
 
 
     """ Other """

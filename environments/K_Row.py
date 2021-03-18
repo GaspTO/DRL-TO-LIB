@@ -343,7 +343,7 @@ class K_RowEnv(gym.Env):
         board = np.zeros(self.board_shape)
         player = FIRST_PLAYER
         self.state = State(board,player,self.target_length)
-        return self.state.board
+        return self.state.get_two_boards()
     
     '''def is_valid(self,state, x,y):
         board = state[0]
@@ -438,9 +438,9 @@ class K_RowEnv(gym.Env):
         winner = self.get_winner(self.state)
         if winner is not None:
             self.done = True
-            return self.state.board, winner, self.done, {"player":self.state.player}
+            return self.state.get_two_boards(), winner, self.done, {"player":self.state.player}
         else:
-            return self.state.board, 0, self.done, {"player":self.state.player}
+            return self.state.get_two_boards(), 0, self.done, {"player":self.state.player}
     
     def render(self, mode='human'):
         return self.state.render(mode,self.render_characters)

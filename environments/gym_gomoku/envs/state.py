@@ -90,6 +90,7 @@ class Board(object):
         self.move = 0                 # how many move has been made
         self.last_coord = (-1,-1)     # last action coord
         self.last_action = None       # last action made
+        self.winner = None
     
     def coord_to_action(self, i, j):
         ''' convert coordinate i, j to action a in [0, board_size**2)
@@ -168,12 +169,19 @@ class Board(object):
     
     def is_terminal(self):
         exist, color = gomoku_util.check_five_in_row(self.board_state)
+        self.winner = color
         is_full = gomoku_util.check_board_full(self.board_state)
         if (is_full): # if the board if full of stones and no extra empty spaces, game is finished
             return True
         else:
             return exist
-    
+
+    def get_mask(self):
+        actions = self.size**2 * [0]
+        for idx in self.get_legal_action():
+            actions[idx] = 1
+        return actions
+
     def __repr__(self):
         ''' representation of the board class
             print out board_state

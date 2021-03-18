@@ -28,65 +28,14 @@ class Config_Reinforce(Config_Base_Agent):
         return self.learning_rate
 
 
-class Policy_Re(nn.Module):
-    def __init__(self):
-        super().__init__()
-        self.one = nn.Sequential(
-            nn.Linear(81, 30),
-            nn.Sigmoid(),
-            nn.Linear(30,30),
-            nn.Sigmoid(),
-            nn.Linear(30,30),
-            nn.Sigmoid()
-        )
-        self.actions =  nn.Sequential(
-            nn.Linear(30,81),
-            #todo 
-        ) 
-        self.critic = nn.Sequential(
-            nn.Linear(30,1)
-        )
-
-    def forward(self, x, mask=None):
-        # in lightning, forward defines the prediction/inference actions
-        self.x1 = x.view(x.size(0),-1)
-        self.x2 = self.one(self.x1)
-
-
-        self.actions1 = self.actions(self.x2)
-        if(mask is not None):
-            #self.actions1 = self.actions1.mul((1-mask)*1e-8 + mask)
-            self.actions1 = self.actions1.mul(mask)
-        self.actions2 = torch.softmax(self.actions1,dim=1)
-        
-        #self.actions3 = (self.actions2 + smoothing) 
-        #self.actions4 = self.actions3/self.actions3.sum()
-
- 
-        self.x2.retain_grad()
-        #self.actions1.retain_grad()
-        self.actions2.retain_grad()
-        #self.actions3.retain_grad()
-        #self.actions4.retain_grad()
-        
-        #critic = self.critic(self.x2)
-        #return self.actions2,critic
-
-
-        return self.actions2
-
-    def configure_optimizers(self):
-        #optimizer = torch.optim.Adam(self.parameters(), lr=2e-13)
-        optimizer = torch.optim.SGD(self.parameters(), lr=1e-3)
-        return optimizer
     
 
 class REINFORCE(Base_Agent):
     agent_name = "REINFORCE"
     def __init__(self, config):
         Base_Agent.__init__(self, config)
-        self.policy = Policy_Re()
-        self.optimizer = optim.Adam(self.policy.parameters(), lr=2e-5)
+        self.policy = self.config.architecture()
+        self.optimizer = optim.Adam(self.policy.parameters(), lr=self.config.learning_rate)
 
     """ Basic Operations """
     def reset_game(self):
@@ -95,32 +44,51 @@ class REINFORCE(Base_Agent):
         self.episode_action_log_probabilities = []
         self.episode_step_number = 0
 
+  
     def step(self):
-        """Runs a step within a game including a learning step if required"""
         while not self.done:
-            self.pick_and_conduct_action_and_save_log_probabilities()
-            if self.time_to_learn():
+            self.conduct_action()
+            if self.done:
                 self.learn()
-            self.set_state(self.get_next_state())
             self.episode_step_number += 1
         self.episode_number += 1
         if(self.debug_mode):
             self.log_updated_probabilities()
-
+    
+    def conduct_action(self):
+        """Conducts an action in the environment"""
+        action, log_probabilities = self.pick_action_and_get_log_probabilities()
+        next_state, reward, done, _ = self.environment.step(action)
+        self.action = action
+        self.state = next_state
+        self.reward = reward
+        self.done = done
+        self.episode_actions.append(self.action)
+        self.episode_states.append(self.state)
+        self.episode_rewards.append(self.reward)
+        self.episode_dones.append(self.done)
+        self.episode_action_log_probabilities.append(log_probabilities)
+        self.total_episode_score_so_far += self.reward
+        if self.config.get_clip_rewards(): self.reward =  max(min(self.reward, 1.0), -1.0)
+        if(self.done == True):
+          #  self.logger.info("Game ended -- State and Reward Sequence is:\n{}".format(self.pack_states_and_rewards_side_by_side()))
+        #   self.logger.info("Game ended -- Final state {}".format(self.get_next_state()))
+            self.logger.info("final_reward: {}".format(self.reward))
+        
 
     """ Network -> Environment """
     def pick_and_conduct_action_and_save_log_probabilities(self):
         """Picks and then conducts actions. Then saves the log probabilities of the actions it conducted to be used for
         learning later"""
         action, log_probabilities = self.pick_action_and_get_log_probabilities()
-        self.set_action(action)
-        self.store_action_log_probabilities(log_probabilities)
-        self.conduct_action(self.get_action())
+        self.action = action
+        self.episode_action_log_probabilities.append(log_probabilities)
+        self.conduct_action(self.action)
     
 
     def pick_action_and_get_log_probabilities(self):
         """Picks actions and then calculates the log probabilities of the actions it picked given the policy"""
-        state = torch.from_numpy(self.get_state()).float().unsqueeze(0).to(self.device)
+        state = torch.from_numpy(self.state).float().unsqueeze(0).to(self.device)
         action_values = self.policy(state)
         action_values_copy = action_values.detach()
         if(self.action_mask_required == True): #todo can't use the forward for this mask cause... critic_output
@@ -138,8 +106,12 @@ class REINFORCE(Base_Agent):
     def learn(self):
         #todo use base_agent: take optimization step
         """Runs a learning iteration for the policy"""
-        policy_loss = self.calculate_policy_loss_on_episode()
-        self.take_optimisation_step(self.optimizer,self.policy,policy_loss,self.config.get_gradient_clipping_norm())
+        policy = self.policy
+        episode_rewards = self.episode_rewards
+        episode_log_probs = self.episode_action_log_probabilities
+        policy_loss = self.calculate_policy_loss_on_episode(episode_rewards=episode_rewards,episode_log_probs=episode_log_probs)
+        self.take_optimisation_step(self.optimizer,policy,policy_loss,self.config.get_gradient_clipping_norm())
+        self.log_updated_probabilities()
 
     def time_to_learn(self):
         """Tells us whether it is time for the algorithm to learn. With REINFORCE we only learn at the end of every
@@ -148,13 +120,16 @@ class REINFORCE(Base_Agent):
 
 
     """ Calculate Loss """
-    def calculate_policy_loss_on_episode(self,alpha=1):
-        all_discounted_returns = torch.tensor(self.calculate_discounted_returns())
+    def calculate_policy_loss_on_episode(self,alpha=1,episode_rewards=None,episode_log_probs=None):
+        if episode_rewards is None: episode_rewards = self.episode_rewards
+        if episode_log_probs is None: episode_log_probs = self.episode_action_log_probabilities
+
+        all_discounted_returns = torch.tensor(self.calculate_discounted_returns(episode_rewards=episode_rewards))
 
         advantages = all_discounted_returns
         advantages = advantages.detach()
 
-        action_log_probabilities_for_all_episodes = torch.cat(self.get_episode_action_log_probabilities())
+        action_log_probabilities_for_all_episodes = torch.cat(episode_log_probs)
         actor_loss_values = -1 * action_log_probabilities_for_all_episodes * advantages
         actor_loss =   actor_loss_values.mean() * alpha
         if(self.debug_mode):
@@ -163,23 +138,15 @@ class REINFORCE(Base_Agent):
 
         return actor_loss
 
-    def calculate_discounted_returns(self):
+    def calculate_discounted_returns(self,episode_rewards=None):
+        if episode_rewards is None: episode_rewards = self.episode_rewards
+
         discounted_returns = []
         discounted_reward = 0
-        for ix in range(len(self.episode_rewards)):
-            discounted_reward = self.episode_rewards[-(ix + 1)] + self.config.get_discount_rate()*discounted_reward
+        for ix in range(len(episode_rewards)):
+            discounted_reward = episode_rewards[-(ix + 1)] + self.config.get_discount_rate()*discounted_reward
             discounted_returns.insert(0,discounted_reward)
         return discounted_returns
-
-
-    """ storage in lists """
-    def store_action_log_probabilities(self, action_log_probabilities):
-        """Stores the log probability of picked actions to be used for learning later"""
-        self.episode_action_log_probabilities.append(action_log_probabilities)
-
-    """ get in lists """
-    def get_episode_action_log_probabilities(self):
-        return self.episode_action_log_probabilities
 
 
     """ debug """
@@ -190,20 +157,20 @@ class REINFORCE(Base_Agent):
             self.actor_loss_debug = args['actor_loss_debug']
         
     def log_updated_probabilities(self,print_results=False):
-        r = self.get_reward()
+        r = self.reward
         full_text = []
-        for s,a,l,aloss in zip(self.get_episode_states(),self.get_episode_actions(),self.get_episode_action_log_probabilities(),self.actor_loss_values_debug):
+        for s,a,l in zip(self.episode_states,self.episode_actions,self.episode_action_log_probabilities):
             with torch.no_grad():
                 state = torch.from_numpy(s).float().unsqueeze(0).to(self.device)
             actor_values = self.policy(state)
-            text = """\r D_reward {0: .2f}, action: {1: 2d}, | old_prob: {2: .10f}, new_prob: {3: .10f} | *loss_actor: {4: .3f}*"""
-            formatted_text = text.format(r,a,math.exp(l),actor_values[0][a].item(),aloss.item())
+            text = """\r D_reward {0: .2f}, action: {1: 2d}, | old_prob: {2: .10f}, new_prob: {3: .10f}"""
+            formatted_text = text.format(r,a,math.exp(l),actor_values[0][a].item())
             if(print_results): print(formatted_text)
             full_text.append(formatted_text )
         self.logger.info("Updated probabilities and Loss After update:" + ''.join(full_text))
 
     def see_state(self):
-        return self.policy(torch.from_numpy(self.get_state()).float().unsqueeze(0).to(self.device))
+        return self.policy(torch.from_numpy(self.state).float().unsqueeze(0).to(self.device))
 
 
 

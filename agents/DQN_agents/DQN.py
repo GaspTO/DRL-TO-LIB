@@ -45,49 +45,10 @@ class Config_DQN(Config_Base_Agent):
     
 
   
-class Policy_DQN(nn.Module):
-    def __init__(self):
-        super().__init__()
-        self.one = nn.Sequential(
-            nn.Linear(81, 30),
-            nn.Sigmoid(),
-            nn.Linear(30,30),
-            nn.Sigmoid(),
-            nn.Linear(30,30),
-            nn.Sigmoid()
-        )
-        self.actions =  nn.Sequential(
-            nn.Linear(30,81),
-            #todo 
-        ) 
-  
-    def forward(self, x):
-        # in lightning, forward defines the prediction/inference actions
-        self.x1 = x.view(x.size(0),-1)
-        self.x2 = self.one(self.x1)
 
 
-        self.actions1 = self.actions(self.x2)
-        self.actions2 = torch.softmax(self.actions1,dim=1)
-        #self.actions3 = (self.actions2 + smoothing) 
-        #self.actions4 = self.actions3/self.actions3.sum()
 
  
-        #self.x2.retain_grad()
-        #self.actions1.retain_grad()
-        #self.actions2.retain_grad()
-        #self.actions3.retain_grad()
-        #self.actions4.retain_grad()
-        
-        #critic = self.critic(self.x2)
-        #return self.actions2,critic
-        return self.actions2
-
-    def configure_optimizers(self):
-        #optimizer = torch.optim.Adam(self.parameters(), lr=2e-13)
-        optimizer = torch.optim.SGD(self.parameters(), lr=1e-3)
-        return optimizer
-          
 
 
 class DQN(Base_Agent):
@@ -96,8 +57,8 @@ class DQN(Base_Agent):
     def __init__(self, config):
         Base_Agent.__init__(self, config)
         self.memory = Replay_Buffer(self.config.get_buffer_size(), self.config.get_batch_size(), self.config.get_seed(), self.device)
-        self.q_network_local = Policy_DQN()
-        self.q_network_optimizer = optim.Adam(self.q_network_local.parameters(),lr=2e-4, eps=1e-4)
+        self.q_network_local = self.config.architecture()
+        self.q_network_optimizer = optim.Adam(self.q_network_local.parameters(),lr=self.config.learning_rate)
         self.exploration_strategy = Epsilon_Greedy_Exploration(config)
 
 
@@ -109,24 +70,39 @@ class DQN(Base_Agent):
     def step(self):
         """Runs a step within a game including a learning step if required"""
         while not self.done:
-            self.logger.info("|Global_Step_Number {}|".format(self.global_step_number))
-            self.pick_and_conduct_action_and_save_transition()
+            self.conduct_action()
             if self.time_for_q_network_to_learn():
                 for _ in range(self.config.get_learning_iterations()):
                     self.learn()
-            self.set_state(self.get_next_state())
             self.global_step_number += 1
         self.episode_number += 1
 
 
-    """ Network -> Environment """
-    def pick_and_conduct_action_and_save_transition(self):
+    def conduct_action(self):
+        action = self.pick_action()
+        next_state, reward, done, _ = self.environment.step(action)
+        self.action = action
+        self.reward = reward
+        self.next_state = next_state
+        self.done = done
+        self.save_transition(transition=(self.state,self.action,self.reward,self.next_state,self.done))
+        self.state = self.next_state #only update state after saving transition
+        self.episode_states.append(self.state)
+        self.episode_actions.append(action)
+        self.episode_rewards.append(self.reward)
+        self.total_episode_score_so_far += self.reward
+        if self.config.get_clip_rewards(): self.reward =  max(min(self.reward, 1.0), -1.0)
+        if(self.done == True):
+            self.logger.info("final_reward: {}".format(self.reward))
+
+
+    def pick_action(self):
         """Uses the local Q network and an epsilon greedy policy to pick an action"""
-        state = torch.from_numpy(self.get_state()).float().unsqueeze(0).to(self.device)
+        state = torch.from_numpy(self.state).float().unsqueeze(0).to(self.device)
         self.q_network_local.eval() #puts network in evaluation mode
         with torch.no_grad():
             action_values = self.q_network_local(state)
-        if(self.debug_mode): true_action_values = action_values.clone()
+        true_action_values = action_values.clone()
         if(self.action_mask_required == True): 
             mask = self.get_action_mask()
             unormed_action_values_copy =  action_values.mul(mask)
@@ -136,24 +112,20 @@ class DQN(Base_Agent):
                                                                                     "turn_off_exploration": self.turn_off_exploration,
                                                                                     "episode_number": self.episode_number,
                                                                                     "mask": self.get_action_mask()})
-        self.set_action(action)
-        self.conduct_action(self.get_action())
-        self.save_transition()
         if(self.debug_mode): self.logger.info("Q values\n {} -- Action chosen {} Masked_Prob {} True_Prob {}".format(action_values, action,action_values[0][action],true_action_values[0][action]))
         else: self.logger.info("Action chosen {} Masked_Prob {} True_Prob {}".format(action,action_values[0][action],true_action_values[0][action]))
+        return action
 
+       
     """ Learn """
     def learn(self, transitions=None):
         """Runs a learning iteration for the Q network"""
         if(transitions is None):
             transitions = self.sample_transitions()
-
         states, actions, rewards, next_states, dones = transitions
         self.loss = self.compute_loss(states, next_states, rewards, actions, dones)
         self.take_optimisation_step(self.q_network_optimizer, self.q_network_local, self.loss, self.config.get_gradient_clipping_norm())
-
         actions_list = [action_X.item() for action_X in actions]
-        #self.writer.add_scalar("lossloss",self.loss,self.global_step_number)
         if(self.debug_mode): self.logger.info("Batch to learn from: Action:nºtimes {}".format(Counter(actions_list)))
         
     def time_for_q_network_to_learn(self):

@@ -170,7 +170,4 @@ class GomokuEnv(gym.Env):
             raise error.Error('Unrecognized opponent policy {}'.format(self.opponent))
 
     def get_mask(self):
-        actions = self.board_size**2 * [0]
-        for idx in self.state.board.get_legal_action():
-            actions[idx] = 1
-        return actions
+        return self.state.board.get_mask()

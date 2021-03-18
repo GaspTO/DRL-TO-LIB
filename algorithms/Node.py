@@ -8,6 +8,8 @@ from environments.K_Row import K_RowEnv, EMPTY, FIRST_PLAYER, SECOND_PLAYER, TIE
 MCTS_FIRST_PLAYER = 1
 MCTS_SECOND_PLAYER = -1
 MCTS_TIE = 0
+MCTS_WIN = 1
+MCTS_LOSS = -1
 
 class MCTSNode():
     def __init__(self,state,parent_node=None,parent_action=None,terminal=None,legal_actions=None,content: dict = {}):
@@ -166,6 +168,14 @@ class K_Row_MCTSNode(MCTSNode):
         if not self.is_terminal():
             raise ValueError("Node is not Terminal")
         else:
+            if(self.state.winner == TIE):
+                return MCTS_TIE
+            elif(self.state.winner == self.state.player):
+                raise ValueError("ERRO NÃO É SUPOSTO O ÚLTIMO NÓ GANHAR")
+            else:
+                return MCTS_LOSS
+
+            '''
             if(self.state.winner == FIRST_PLAYER):
                 return MCTS_FIRST_PLAYER
             elif(self.state.winner == SECOND_PLAYER):
@@ -174,6 +184,7 @@ class K_Row_MCTSNode(MCTSNode):
                 return MCTS_TIE
             else:
                 raise ValueError("Some weird value was returned in who_won")
+            '''
 
     
 
