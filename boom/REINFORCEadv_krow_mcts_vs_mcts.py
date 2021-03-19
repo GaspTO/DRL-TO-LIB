@@ -33,6 +33,8 @@ class REINFORCEadv_krow_mcts_vs_mcts(REINFORCE):
         self.episode_inputs = []
         self.to_learn = True
         self.aux = []
+        self.episode_action_probabilities1 = []
+        self.episode_action_probabilities2 = []
 
     def step(self):
         #1000 - 66%
@@ -63,8 +65,10 @@ class REINFORCEadv_krow_mcts_vs_mcts(REINFORCE):
         policy_loss1, policy_loss2 = 0,0
         if len(self.episode_action_log_probabilities1) == 0 and len(self.episode_action_log_probabilities2) == 0: return
         if len(self.episode_action_log_probabilities1) != 0:
-            policy_loss1 = self.calculate_policy_loss_on_episode(episode_rewards=self.episode_rewards1,episode_log_probs=self.episode_action_log_probabilities1)
+            policy_loss1 = self.calculate_policy_loss_on_episode_trick(episode_rewards=self.episode_rewards1, episode_probs=self.episode_action_probabilities1)
+            policy_loss_before = self.calculate_policy_loss_on_episode(episode_rewards=self.episode_rewards1,episode_log_probs=self.episode_action_log_probabilities1)
         if len(self.episode_action_log_probabilities2) != 0:
+            raise ValueError("needs trick")
             policy_loss2 = self.calculate_policy_loss_on_episode(episode_rewards=self.episode_rewards2,episode_log_probs=self.episode_action_log_probabilities2)
         policy_loss = policy_loss1 + policy_loss2
         self.take_optimisation_step(self.optimizer,self.policy,policy_loss,self.config.get_gradient_clipping_norm())
@@ -110,10 +114,13 @@ class REINFORCEadv_krow_mcts_vs_mcts(REINFORCE):
 
     def rl(self,player_n,n = None):
         assert player_n == 1 or player_n == 2
-        action, logg =  super().pick_action_and_get_log_probabilities()
+        #action, logg =  super().pick_action_and_get_log_probabilities()
+        action, logg, prob =  self.pick_action_and_get_log_probabilities_2()
         if player_n == 1:
             self.episode_action_log_probabilities1.append(logg)
+            self.episode_action_probabilities1.append(prob)
         if player_n == 2:
+            raise ValueError('needs policy trick')
             self.episode_action_log_probabilities2.append(logg)
         return action
 
@@ -133,7 +140,7 @@ class REINFORCEadv_krow_mcts_vs_mcts(REINFORCE):
         state = torch.from_numpy(self.state).float().unsqueeze(0).to(self.device)
         action_values = self.policy(state)
         logg =  torch.log(action_values[0][torch.tensor([action])])
-        
+        raise ValueError("needs the policy loss trick")
         if player_n == 1:
             self.episode_action_log_probabilities1.append(logg)
         if player_n == 2:
@@ -141,22 +148,46 @@ class REINFORCEadv_krow_mcts_vs_mcts(REINFORCE):
         return action
         
 
+    
+    def calculate_policy_loss_on_episode_trick(self,alpha=1,episode_rewards=None,episode_probs=None):
+        if episode_rewards is None: episode_rewards = self.episode_rewards
+        if episode_probs is None: episode_probs = self.episode_action_probabilities
+
+        all_discounted_returns = torch.tensor(self.calculate_discounted_returns(episode_rewards=episode_rewards))
+
+        new_p = torch.cat(episode_probs)
+        new_p = torch.where(all_discounted_returns>=0,new_p,1-new_p)
+        new_log_p = torch.log(new_p)
+
+        advantages = all_discounted_returns
+        advantages = advantages.detach()
+
+        #action_log_probabilities_for_all_episodes = torch.cat(new_log_p)
+        action_log_probabilities_for_all_episodes = new_log_p
+
+        actor_loss_values = -1 * action_log_probabilities_for_all_episodes * advantages
+        actor_loss =   actor_loss_values.mean() * alpha
+        if(self.debug_mode):
+            self.set_debug_variables(actor_loss_values_debug=actor_loss_values,\
+                actor_loss_debug=actor_loss)
+
+        return actor_loss
 
 
-    def pick_action_and_get_log_probabilities(self,policy=None):
-        if policy is None: policy = self.policy
-        return super().pick_action_and_get_log_probabilities()
-
-        '''
-        search = MCTS_Search_attempt_muzero(K_Row_MCTSNode(self.environment.state),self.device)
-        search.run_n_playouts(policy,5)
-        action = search.play_action()
-
-
+    def pick_action_and_get_log_probabilities_2(self):
+        """Picks actions and then calculates the log probabilities of the actions it picked given the policy"""
         state = torch.from_numpy(self.state).float().unsqueeze(0).to(self.device)
-        action_values = policy(state)
-        return action, torch.log(action_values[0][torch.tensor([action])])
-        '''
+        action_values = self.policy(state)
+        action_values_copy = action_values.detach()
+        if(self.action_mask_required == True): #todo can't use the forward for this mask cause... critic_output
+            mask = self.get_action_mask()
+            unormed_action_values_copy =  action_values_copy.mul(mask)
+            action_values_copy =  unormed_action_values_copy/unormed_action_values_copy.sum()
+        action_distribution = Categorical(action_values_copy) # this creates a distribution to sample from
+        action = action_distribution.sample()
+        if(self.debug_mode): self.logger.info("Q values\n {} -- Action chosen {} Masked_Prob {:.5f} True_Prob {:.5f}".format(action_values, action.item(),action_values_copy[0][action].item(),action_values[0][action].item()))
+        else: self.logger.info("Action chosen {} Masked_Prob {:.5f} True_Prob {:.5f}\n".format(action.item(),action_values_copy[0][action].item(),action_values[0][action].item()))
+        return action.item(), torch.log(action_values[0][action]), action_values[0][action]
 
     def log_updated_probabilities(self,print_results=False):
         r = self.reward

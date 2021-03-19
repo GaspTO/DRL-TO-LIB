@@ -75,6 +75,7 @@ class Policy_Re2(nn.Module):
         self.x1 = x
         self.logits = self.net(self.x1)
         if(mask is not None):
+            raise ValueError("MASK SHOULD BE NEGATIVE -1*10^8 https://arxiv.org/pdf/2006.14171.pdf")
             self.logits = self.logits.mul(mask)
         self.output = torch.softmax(self.logits,dim=1)
         return self.output
@@ -99,7 +100,7 @@ config.save_model = False
 config.seed = seed
 config.show_solution_score = False
 config.standard_deviation_results = 1.0
-config.use_GPU = True
+config.use_GPU = False
 
 
 """ Config_Base_Agent """
@@ -118,7 +119,7 @@ config.epsilon_decay_rate_denominator = 1
 """ Config_Reinforce """
 config_reinforce = Config_Reinforce(config_base_agent)
 config_reinforce.discount_rate = 0.95
-config_reinforce.learning_rate = 2e-05 
+config_reinforce.learning_rate = 2e-05
 
 """ Config_Reinforce_Tree """
 config_reinforce_tree = Config_Reinforce_Tree(config_reinforce)
