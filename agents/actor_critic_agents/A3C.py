@@ -5,6 +5,7 @@ import numpy as np
 import torch
 from torch import multiprocessing
 from torch.multiprocessing import Queue
+import torch.optim  as optim
 from torch.optim import Adam
 from agents.Base_Agent import Base_Agent, Config_Base_Agent
 from utilities.Utility_Functions import create_actor_distribution, SharedAdam
@@ -16,33 +17,34 @@ class Config_A3C(Config_Base_Agent):
         Config_Base_Agent.__init__(self,config)
         if(isinstance(config,Config_A3C)):
             self.discount_rate = config.get_discount_rate()
-            self.epsilon_decay_rate_denominator = config.get_epsilon_decay_rate_denominator()
             self.exploration_worker_difference = config.get_exploration_worker_difference()
-            self.gradient_clipping_norm = config.get_gradient_clipping_norm()
             self.learning_rate = config.get_learning_rate()
             self.normalise_rewards = config.get_normalise_rewards()
         else:
-            self.discount_rate = 0.99
-            self.epsilon_decay_rate_denominator = 1
-            self.exploration_worker_difference = 2.0
-            self.gradient_clipping_norm = 0.7
-            self.learning_rate = 1
-            self.normalise_rewards = True
+            self.discount_rate = None
+            self.exploration_worker_difference = None
+            self.learning_rate = None
+            self.normalise_rewards = None
 
     def get_discount_rate(self):
+        if(self.discount_rate == None):
+            raise ValueError("discount rate not defined")
         return self.discount_rate
-
-    def get_epsilon_decay_rate_denominator(self):
-        return self.epsilon_decay_rate_denominator
-
+        
     def get_exploration_worker_difference(self):
+        if(self.exploration_worker_difference == None):
+            raise ValueError("'Exploration worker difference not defined")
         return self.exploration_worker_difference
 
-    def get_gradient_clipping_norm(self):
-        return self.gradient_clipping_norm
-
     def get_normalise_rewards(self):
+        if(self.normalise_rewards == None):
+            raise ValueError("normalise rewards not defined")
         return self.normalise_rewards
+
+    def get_learning_rate(self):
+        if(self.learning_rate == None):
+            raise ValueError("Learning Rate Not Defined")
+        return self.learning_rate
         
 class A3C(Base_Agent):
     """Actor critic A3C algorithm from deepmind paper https://arxiv.org/pdf/1602.01783.pdf"""
@@ -50,11 +52,12 @@ class A3C(Base_Agent):
     def __init__(self, config: Config_A3C):
         super(A3C, self).__init__(config)
         self.num_processes = multiprocessing.cpu_count()
+        #todo this is for config
         self.worker_processes = max(1, self.num_processes - 2)
-        print("...crapp")
-        self.worker_processes = 2
-        self.actor_critic = self.create_NN_through_NNbuilder(input_dim=self.input_shape, output_size=self.action_size + 1, smoothing=0.001)
-        self.actor_critic_optimizer = SharedAdam(self.actor_critic.parameters(), lr=config.learning_rate, eps=1e-4)
+        self.policy = self.config.architecture()
+        self.optimizer = optim.Adam(self.policy.parameters(), lr=self.config.learning_rate)
+        #self.actor_critic = self.create_NN_through_NNbuilder(input_dim=self.input_shape, output_size=self.action_size + 1, smoothing=0.001)
+        self.optimizer = SharedAdam(self.actor_critic.parameters(), lr=config.learning_rate, eps=1e-4)
 
     def run_n_episodes(self, num_episodes = None):
         """Runs game to completion n times and then summarises results and saves model (if asked to)"""
@@ -69,15 +72,15 @@ class A3C(Base_Agent):
             self.num_episodes_to_run = self.config.num_episodes_to_run
         episodes_per_process = int(self.num_episodes_to_run / self.worker_processes) + 1
         processes = []
-        self.actor_critic.share_memory()
-        self.actor_critic_optimizer.share_memory()
+        self.policy.share_memory()
+        self.optimizer.share_memory()
 
         optimizer_worker = multiprocessing.Process(target=self.update_shared_model, args=(gradient_updates_queue,))
         optimizer_worker.start()
 
         for process_num in range(self.worker_processes):
             worker = Actor_Critic_Worker(process_num, copy.deepcopy(self.environment), self.actor_critic, episode_number, self.optimizer_lock,
-                                    self.actor_critic_optimizer, self.config, episodes_per_process,
+                                    self.optimizer, self.config, episodes_per_process,
                                     self.config.epsilon_decay_rate_denominator,
                                     self.action_mask_required, 
                                     self.action_size, self.action_types,
@@ -111,11 +114,14 @@ class A3C(Base_Agent):
                 pass
             
             with self.optimizer_lock:
-                self.actor_critic_optimizer.zero_grad()
-                for grads, params in zip(gradients, self.actor_critic.parameters()):
+                self.optimizer.zero_grad()
+                for grads, params in zip(gradients, self.policy.parameters()):
                     params._grad = grads  # maybe need to do grads.clone()
-                self.actor_critic_optimizer.step()
+                self.optimizer.step()
         
+
+
+
 
 class Actor_Critic_Worker(torch.multiprocessing.Process,Base_Agent):
 

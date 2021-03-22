@@ -9,6 +9,7 @@ import time
 from torch.utils.tensorboard import SummaryWriter
 from torch.optim import optimizer
 from utilities.data_structures.Config import Config
+from agents.Agent import Agent
 
 
 
@@ -20,8 +21,8 @@ class Config_Base_Agent(Config):
             self.gradient_clipping_norm = config.get_gradient_clipping_norm()
             self.clip_rewards = config.get_clip_rewards()
             self.architecture = config.get_architecture()
-            self.input_dim = config.get_input_dim()
-            self.output_size = config.get_output_size()
+            #self.input_dim = config.get_input_dim()
+            #self.output_size = config.get_output_size()
             self.is_mask_needed = config.get_is_mask_needed()
             self.random_episodes_to_run = config.get_random_episodes_to_run()
             self.epsilon_decay_rate_denominator = config.get_epsilon_decay_rate_denominator()
@@ -30,8 +31,8 @@ class Config_Base_Agent(Config):
             self.gradient_clipping_norm = 0.7
             self.clip_rewards = False
             self.architecture = None
-            self.input_dim = None 
-            self.output_size = None
+            #self.input_dim = None 
+            #self.output_size = None
             self.is_mask_needed = False
             self.random_episodes_to_run = 0
             self.epsilon_decay_rate_denominator = 1
@@ -61,8 +62,10 @@ class Config_Base_Agent(Config):
             return torch.tensor(torch.tensor([self.environment.reset()]).shape)
     
     def get_output_size(self):
+        return 3 #todo fixme
         """ also adds batch dimension """
         if(self.output_size != None):
+            
             return self.output_size
         try:
             return  self.environment.action_space.n
@@ -88,7 +91,7 @@ class Config_Base_Agent(Config):
             raise ValueError("Epsilon Decay Rate Denominator Not Defined")
         
 
-class Base_Agent(object):
+class Base_Agent(Agent):
     prepared_games = ["Gomoku","K_Row"]
     def __init__(self, config: Config_Base_Agent):
         self.setup_logger()
@@ -100,10 +103,12 @@ class Base_Agent(object):
         self.environment_title = self.get_environment_title()
         if(self.environment_title not in self.prepared_games):
             raise ValueError("This game was not implemented")
-        self.action_types = "DISCRETE" if self.environment.action_space.dtype == np.int64 else "CONTINUOUS"
-        self.action_size = self.config.get_output_size()
+        self.action_types = "dumb..." #todo fix me
+        #self.action_types = "DISCRETE" if self.environment.action_space.dtype == np.int64 else "CONTINUOUS"
+        self.action_size = self.config.get_output_size() #todo fixme
         self.action_mask_required = self.config.get_is_mask_needed()
-        self.input_shape = self.config.get_input_dim()
+        self.input_shape = 3 #todo fixme 
+        #self.input_shape = self.config.get_input_dim() #todo fixme
         self.average_score_required_to_win = self.get_score_required_to_win()
         self.rolling_score_window = self.get_trials()
         self.total_episode_score_so_far = 0
@@ -176,8 +181,6 @@ class Base_Agent(object):
         self.total_episode_score_so_far += self.reward
         if self.config.get_clip_rewards(): self.reward =  max(min(self.reward, 1.0), -1.0)
         if(self.done == True):
-          #  self.logger.info("Game ended -- State and Reward Sequence is:\n{}".format(self.pack_states_and_rewards_side_by_side()))
-        #   self.logger.info("Game ended -- Final state {}".format(self.get_next_state()))
             self.logger.info("final_reward: {}".format(self.reward))
 
     def get_action_mask(self):
@@ -252,19 +255,21 @@ class Base_Agent(object):
                 else:
                     name = self.environment.spec.id.split("-")[0]
             except AttributeError:
-                name = str(self.environment.env)
-                if name[0:10] == "TimeLimit<": name = name[10:]
-                name = name.split(" ")[0]
-                if name[0] == "<": name = name[1:]
-                if name[-3:] == "Env": name = name[:-3]
+                try:
+                    name = self.environment.get_id()
+                except:
+                    name = str(self.environment.env)
+                    if name[0:10] == "TimeLimit<": name = name[10:]
+                    name = name.split(" ")[0]
+                    if name[0] == "<": name = name[1:]
+                    if name[-3:] == "Env": name = name[:-3]
         return name
 
     def get_score_required_to_win(self):
         """Gets average score required to win game"""
-        print("TITLE ", self.environment_title)
         if self.environment_title == "FetchReach": return -5
         if self.environment_title in ["AntMaze", "Hopper", "Walker2d","Gomoku","K_Row"]:
-            print("Score required to win set to infinity therefore no learning rate annealing will happen")
+            #print("Score required to win set to infinity therefore no learning rate annealing will happen")
             return float("inf")
         try: return self.environment.unwrapped.reward_threshold
         except AttributeError:
@@ -436,6 +441,12 @@ class Base_Agent(object):
 
 
     """ Other """
+    def clone(self):
+        raise NotImplementedError
+
+    def __del__(self):
+        self.writer.close()
+
     @staticmethod
     def move_gradients_one_model_to_another(from_model, to_model, set_from_gradients_to_zero=False):
         """Copies gradients from from_model to to_model"""

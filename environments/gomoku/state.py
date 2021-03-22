@@ -8,11 +8,8 @@ from six import StringIO
 import sys, os
 import six
 
-from environments.gym_gomoku.envs.util import gomoku_util
-from environments.gym_gomoku.envs.util import make_random_policy
-from environments.gym_gomoku.envs.util import make_beginner_policy
-from environments.gym_gomoku.envs.util import make_medium_policy
-from environments.gym_gomoku.envs.util import make_expert_policy
+from environments.gomoku.util import gomoku_util, make_random_policy, make_beginner_policy,\
+    make_medium_policy, make_expert_policy
 
 
 

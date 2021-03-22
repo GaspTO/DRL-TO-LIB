@@ -29,7 +29,6 @@ class Config_Reinforce(Config_Base_Agent):
 
 
     
-
 class REINFORCE(Base_Agent):
     agent_name = "REINFORCE"
     def __init__(self, config):
@@ -37,59 +36,57 @@ class REINFORCE(Base_Agent):
         self.policy = self.config.architecture()
         self.optimizer = optim.Adam(self.policy.parameters(), lr=self.config.learning_rate)
 
+    """ test time """
+    def play(self,states:np.array=None)->np.array:
+        if states is None: raise ValueError('Needs a state batch #fixme')
+        raise ValueError('implement')
+
     """ Basic Operations """
     def reset_game(self):
         """Resets the game information so we are ready to play a new episode"""
         super().reset_game()
         self.episode_action_log_probabilities = []
+        self.episode_critic_values = []
         self.episode_step_number = 0
 
-  
     def step(self):
         while not self.done:
             self.conduct_action()
-            if self.done:
+            if self.time_to_learn():
+                self.set_terminal_reward() #useful for actor-critic
                 self.learn()
             self.episode_step_number += 1
+            self.state = self.next_state
         self.episode_number += 1
         if(self.debug_mode):
             self.log_updated_probabilities()
+        if(self.done == True):
+            self.logger.info("final_reward: {}".format(self.reward))
     
     def conduct_action(self):
         """Conducts an action in the environment"""
-        action, log_probabilities = self.pick_action_and_get_log_probabilities()
-        next_state, reward, done, _ = self.environment.step(action)
-        self.action = action
-        self.state = next_state
-        self.reward = reward
+        self.action, self.probability = self.pick_action_and_get_probability()
+        self.next_state, self.reward, done, _ = self.environment.step(self.action)
+        if self.config.get_clip_rewards(): self.reward =  max(min(self.reward, 1.0), -1.0)
         self.done = done
-        self.episode_actions.append(self.action)
+        self.save_update_information()
+        
+    def save_update_information(self):
+        self.critic_value = self.get_critic_value() #needs to be here cause it might need next_state
         self.episode_states.append(self.state)
+        self.episode_actions.append(self.action)
+        self.episode_next_states.append(self.next_state)
         self.episode_rewards.append(self.reward)
         self.episode_dones.append(self.done)
-        self.episode_action_log_probabilities.append(log_probabilities)
+        self.episode_action_log_probabilities.append(torch.log(self.probability))
+        self.episode_critic_values.append(self.critic_value)
         self.total_episode_score_so_far += self.reward
-        if self.config.get_clip_rewards(): self.reward =  max(min(self.reward, 1.0), -1.0)
-        if(self.done == True):
-          #  self.logger.info("Game ended -- State and Reward Sequence is:\n{}".format(self.pack_states_and_rewards_side_by_side()))
-        #   self.logger.info("Game ended -- Final state {}".format(self.get_next_state()))
-            self.logger.info("final_reward: {}".format(self.reward))
-        
 
-    """ Network -> Environment """
-    def pick_and_conduct_action_and_save_log_probabilities(self):
-        """Picks and then conducts actions. Then saves the log probabilities of the actions it conducted to be used for
-        learning later"""
-        action, log_probabilities = self.pick_action_and_get_log_probabilities()
-        self.action = action
-        self.episode_action_log_probabilities.append(log_probabilities)
-        self.conduct_action(self.action)
     
-
-    def pick_action_and_get_log_probabilities(self):
-        """Picks actions and then calculates the log probabilities of the actions it picked given the policy"""
-        state = torch.from_numpy(self.state).float().unsqueeze(0).to(self.device)
-        action_values = self.policy(state)
+    def pick_action_and_get_probability(self,current_state=None):
+        if current_state is None: current_state = self.state
+        input_state = torch.from_numpy(current_state).float().unsqueeze(0).to(self.device)
+        action_values = self.policy(input_state)
         action_values_copy = action_values.detach()
         if(self.action_mask_required == True): #todo can't use the forward for this mask cause... critic_output
             mask = self.get_action_mask()
@@ -99,12 +96,18 @@ class REINFORCE(Base_Agent):
         action = action_distribution.sample()
         if(self.debug_mode): self.logger.info("Q values\n {} -- Action chosen {} Masked_Prob {:.5f} True_Prob {:.5f}".format(action_values, action.item(),action_values_copy[0][action].item(),action_values[0][action].item()))
         else: self.logger.info("Action chosen {} Masked_Prob {:.5f} True_Prob {:.5f}".format(action.item(),action_values_copy[0][action].item(),action_values[0][action].item()))
-        return action.item(), torch.log(action_values[0][action])
+        return action.item(), action_values[0][action]
 
-    
+    def get_critic_value(self):
+        return torch.tensor([0.])
+
+    def set_terminal_reward(self):
+        ''' useful for actor critics '''
+        self.terminal_reward = 0
+
+
     """ Learn """
     def learn(self):
-        #todo use base_agent: take optimization step
         """Runs a learning iteration for the policy"""
         policy = self.policy
         episode_rewards = self.episode_rewards
@@ -120,42 +123,36 @@ class REINFORCE(Base_Agent):
 
 
     """ Calculate Loss """
-    def calculate_policy_loss_on_episode(self,alpha=1,episode_rewards=None,episode_log_probs=None):
+    def calculate_policy_loss_on_episode(self,alpha=1,episode_rewards=None,episode_log_probs=None,episode_critic_values=None):
         if episode_rewards is None: episode_rewards = self.episode_rewards
         if episode_log_probs is None: episode_log_probs = self.episode_action_log_probabilities
+        if episode_critic_values is None: episode_critic_values = self.episode_critic_values
 
-        all_discounted_returns = torch.tensor(self.calculate_discounted_returns(episode_rewards=episode_rewards))
-
-        advantages = all_discounted_returns
-        advantages = advantages.detach()
+        self.all_discounted_returns = torch.tensor(self.calculate_discounted_returns(episode_rewards=episode_rewards))
+        self.advantages = self.all_discounted_returns - torch.cat(episode_critic_values)
 
         action_log_probabilities_for_all_episodes = torch.cat(episode_log_probs)
-        actor_loss_values = -1 * action_log_probabilities_for_all_episodes * advantages
-        actor_loss =   actor_loss_values.mean() * alpha
-        if(self.debug_mode):
-            self.set_debug_variables(actor_loss_values_debug=actor_loss_values,\
-                actor_loss_debug=actor_loss)
-
-        return actor_loss
+        actor_loss_values = -1 * action_log_probabilities_for_all_episodes * self.advantages
+        self.actor_loss =   actor_loss_values.mean() * alpha
+        return self.actor_loss
 
     def calculate_discounted_returns(self,episode_rewards=None):
         if episode_rewards is None: episode_rewards = self.episode_rewards
-
         discounted_returns = []
-        discounted_reward = 0
+        discounted_reward = self.terminal_reward
         for ix in range(len(episode_rewards)):
             discounted_reward = episode_rewards[-(ix + 1)] + self.config.get_discount_rate()*discounted_reward
             discounted_returns.insert(0,discounted_reward)
         return discounted_returns
 
+    ''' clone '''
+    def clone(self):
+        cloned_agent = REINFORCE(self.config)
+        self.copy_model_over(self.policy, cloned_agent.policy)
+        return cloned_agent
 
-    """ debug """
-    def set_debug_variables(self,**args):
-        if('actor_loss_values_debug' in args):
-            self.actor_loss_values_debug = args['actor_loss_values_debug']
-        if('actor_loss_debug' in args):
-            self.actor_loss_debug = args['actor_loss_debug']
-        
+
+    """ debug """        
     def log_updated_probabilities(self,print_results=False):
         r = self.reward
         full_text = []
