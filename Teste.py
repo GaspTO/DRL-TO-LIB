@@ -9,9 +9,9 @@ import torch
 import torch.nn as nn
 
 from environments.gomoku.Gomoku import GomokuEnv
-from environments.k_row.K_Row import K_RowEnv
-from environments.adapter_environments.Simple_Playground_Env import Simple_Playground_Env
-from environments.adapter_environments.Simple_Self_Play import Simple_Self_Play
+from environments.k_row_interface import K_Row_Interface
+from environments.Simple_Playground_Env import Simple_Playground_Env
+from environments.Simple_Self_Play import Simple_Self_Play
 
 from utilities.data_structures.Config import Config
 
@@ -25,22 +25,20 @@ import random
 
 from agents.Base_Agent import Base_Agent, Config_Base_Agent
 from agents.policy_gradient_agents.REINFORCE import REINFORCE, Config_Reinforce
-#from agents.policy_gradient_agents.REINFORCE_Baseline import REINFORCE_Baseline, Config_Reinforce_Baseline
 from agents.policy_gradient_agents.REINFORCE_BASELINE import REINFORCE_BASELINE, Config_Reinforce_Baseline
-from agents.tree_agents.DAGGER import DAGGER
-from agents.tree_agents.mcts_rl import mcts_rl_agent
+from agents.tree_agents.MCTS_Search import MCTS_Agent
+#from agents.tree_agents.DAGGER import DAGGER
 
-from boom.REINFORCE_adv import REINFORCE_adv, Config_Reinforce_adv
-from boom.REINFORCE_adv_negative import REINFORCE_adv_negative, Config_Reinforce_adv_negative
-from boom.REINFORCEadv_krow import REINFORCEadv_krow
-from boom.DDQN_krow import DDQN_krow, Config_DDQN_krow
-from boom.REINFORCEadv_krow_mcts_vs_mcts import REINFORCEadv_krow_mcts_vs_mcts
+
+#from boom.REINFORCE_adv import REINFORCE_adv, Config_Reinforce_adv
+#from boom.REINFORCE_adv_negative import REINFORCE_adv_negative, Config_Reinforce_adv_negative
+#from boom.REINFORCEadv_krow import REINFORCEadv_krow
+#from boom.DDQN_krow import DDQN_krow, Config_DDQN_krow
+#from boom.REINFORCEadv_krow_mcts_vs_mcts import REINFORCEadv_krow_mcts_vs_mcts
 
 
 seed = random.randint(1, 1000)
 print("seed=" + str(seed))
-
-
 
 
 
@@ -49,7 +47,7 @@ class Critic(nn.Module):
         super().__init__()
         self.net = nn.Sequential(
             nn.Flatten(),
-            nn.Linear(81,80),
+            nn.Linear(32,80),
             nn.ReLU(),
             nn.Linear(80,80),
             nn.ReLU(),
@@ -129,8 +127,8 @@ class Policy_Re2(nn.Module):
 config = Config()
 config.debug_mode = False
 #config.environment = GomokuEnv('black','random',9)
-config.environment = K_RowEnv(board_shape=4, target_length=3)
-config.environment = Simple_Playground_Env(config.environment)
+#config.environment = K_Row_Interface(board_shape=4, target_length=3)
+config.environment = Simple_Playground_Env(K_Row_Interface(board_shape=4, target_length=3))
 #config.environment = Simple_Self_Play(episodes_to_update=100,environment=config.environment)
 ''' --- ''' 
 config.file_to_save_data_results = "results/data_and_graphs/Cart_Pole_Results_Data.pkl"
@@ -166,7 +164,7 @@ config.epsilon_decay_rate_denominator = 1
 """ Config_Reinforce """
 config_reinforce = Config_Reinforce(config_base_agent)
 config_reinforce.discount_rate = 0.95
-config_reinforce.learning_rate = 2e-04
+config_reinforce.learning_rate = 2e-12
 
 """ Config_Reinforce_Tree """
 config_reinforce_tree = Config_Reinforce_Tree(config_reinforce)
@@ -204,7 +202,7 @@ config.exploration_worker_difference = 2.0
 
 ''' MAIN '''
 #todo these algorithms don't put new tensors on gpu if asked
-#agent = REINFORCE(config_reinforce)
+agent = REINFORCE(config_reinforce)
 #agent = REINFORCE_BASELINE(config_reinforce_baseline)
 
 #agent = REINFORCEadv_krow(config_reinforce)
@@ -221,13 +219,11 @@ config.exploration_worker_difference = 2.0
 #agent = DDQN_krow(config_DDQN)
 #agent = A3C(config_A3C) 
 
-agent = DAGGER(config_reinforce)
+#agent = DAGGER(config_reinforce)
 
-#torch.autograd.set_detect_anomaly(True)
 
-enemy = mcts_rl_agent(25,config.environment)
-config.environment.add_agent(enemy)
-#config.environment.add_agent(agent)
+
+config.environment.add_agent(MCTS_Agent(config_reinforce.environment.environment,n_iterations=25))
 game_scores, rolling_scores, time_taken = agent.run_n_episodes(num_episodes=100000)
 
 

@@ -17,21 +17,22 @@ class Simple_Playground_Env(Environment_Interface):
     def set_environment(self, environment):
         self.environment = environment
     
-    def step(self,action,zero_sum = True, all_info = False):
+    def step(self,action,info=None,zero_sum = True, all_info = False):
+        if info != None: raise ValueError("Simple_Playergroung is still not prepared for info != None ")
         if self.adversary_agent is None: raise ValueError('Need to add an agent to playground')
         if self.environment is None: raise ValueError('Need to set an environment to playground')
         next_state1, reward1, done1, info1 = self.environment.step(action)
         if(not done1):
-            action = self.adversary_agent.play(next_state1)
+            action = self.adversary_agent.play(info1)
             next_state2, reward2, done2, info2 = self.environment.step(action)
         else:
             next_state2 = next_state1
             reward2 = 0
             done2 = done1
-            info2 = None
+            info2 = info1
             
-        total_reward = reward1 + reward2 if zero_sum is True else reward1
-        total_info = (info1,info2) if all_info is True else info1
+        total_reward = reward1 + -1*reward2 if zero_sum is True else reward1
+        total_info = (info1,info2) if all_info is True else info2
 
         return next_state2, total_reward, done2, total_info
 
