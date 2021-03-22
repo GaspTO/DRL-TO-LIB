@@ -2,8 +2,8 @@ import sys
 from os.path import dirname, abspath
 sys.path.append(dirname(dirname(abspath(__file__))))
 import random
-from environments.Gomoku import GomokuEnv
-from environments.K_Row import K_RowEnv, EMPTY, FIRST_PLAYER, SECOND_PLAYER, TIE
+from environments.gomoku.Gomoku import GomokuEnv
+from environments.k_row.K_Row import K_RowEnv, EMPTY, FIRST_PLAYER, SECOND_PLAYER, TIE
 
 MCTS_FIRST_PLAYER = 1
 MCTS_SECOND_PLAYER = -1

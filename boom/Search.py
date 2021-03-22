@@ -5,8 +5,9 @@ from os.path import dirname, abspath
 sys.path.append(dirname(dirname(abspath(__file__))))
 import numpy
 from numpy.core.numeric import NaN, normalize_axis_tuple
-from environments.Gomoku import GomokuEnv
-from environments.K_Row import K_RowEnv
+
+#from environments.gomoku.Gomoku import GomokuEnv
+from environments.k_row_interface import K_Row_Interface
 from algorithms.Node import Gomoku_MCTSNode, K_Row_MCTSNode, MCTS_FIRST_PLAYER, MCTS_TIE, MCTS_SECOND_PLAYER, MCTS_WIN, MCTS_LOSS
 from collections import deque
 from math import sqrt,log

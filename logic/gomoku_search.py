@@ -5,7 +5,7 @@ from os.path import dirname, abspath
 from numpy.core.numeric import normalize_axis_tuple
 sys.path.append(dirname(dirname(abspath(__file__))))
 #from environments.gym_gomoku.envs import state
-from environments.Gomoku import GomokuEnv
+from environments.gomoku.Gomoku import GomokuEnv
 from collections import deque
 from math import sqrt,log
 import random

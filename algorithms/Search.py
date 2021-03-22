@@ -5,25 +5,37 @@ from os.path import dirname, abspath
 sys.path.append(dirname(dirname(abspath(__file__))))
 import numpy
 from numpy.core.numeric import NaN, normalize_axis_tuple
-from environments.Gomoku import GomokuEnv
-from environments.K_Row import K_RowEnv
+from environments.gomoku.Gomoku import GomokuEnv
+from environments.k_row.K_Row import K_RowEnv
 from algorithms.Node import Gomoku_MCTSNode, K_Row_MCTSNode, MCTS_FIRST_PLAYER, MCTS_TIE, MCTS_SECOND_PLAYER, MCTS_WIN, MCTS_LOSS
 from collections import deque
 from math import sqrt,log
 import random
+from agents.Agent import Agent
+import numpy as np
 
 
 
       
 ''' Search Engine '''
-class MCTS_Search():
-    def __init__(self,root, initial_variables = {}, debug = False):
-        self.root = root
-        self.root.belongs_to_tree = True
+class MCTS_Search(Agent):
+    def __init__(self,root,n_iterations,debug = False):
+        
         self.current_node = self.root
         self.variables = initial_variables
         self.exploration_weight = 1
         self.debug = debug
+        self.n_iterations = n_iterations
+
+    
+    def get_probs(self):
+        def prob(node):
+                if node.num_chosen_by_parent == 0:
+                    return 0.  # avoid unseen moves
+                return (node.num_losses + 0.5*node.num_draws) / node.num_chosen_by_parent
+        plays = [node for node in self.root.get_successors()]
+        plays.sort(key=lambda node: node.parent_action)
+        return np.array(plays)            
 
     def play_action(self, debug = False):
             def score(node):
