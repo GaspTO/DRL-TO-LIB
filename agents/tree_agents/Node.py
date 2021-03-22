@@ -1,47 +1,49 @@
 import sys
 from os.path import dirname, abspath
 sys.path.append(dirname(dirname(abspath(__file__))))
+sys.path.append("/home/nizzel/Desktop/Tiago/Computer_Science/Tese/DRL-TO-LIB")
 import random
-from environments.gomoku.Gomoku import GomokuEnv
-from environments.k_row.K_Row import K_RowEnv, EMPTY, FIRST_PLAYER, SECOND_PLAYER, TIE
+from environments.environment_utils import Players, Player, IN_GAME, TERMINAL
 
-MCTS_FIRST_PLAYER = 1
-MCTS_SECOND_PLAYER = -1
-MCTS_TIE = 0
-MCTS_WIN = 1
-MCTS_LOSS = -1
+
+#from environments.gomoku.Gomoku import GomokuEnv
+#from environments.k_row.K_Row import K_RowEnv, EMPTY, FIRST_PLAYER, SECOND_PLAYER, TIE
+
+
 
 class MCTSNode():
-    def __init__(self,state,parent_node=None,parent_action=None,terminal=None,legal_actions=None,content: dict = {}):
+    def __init__(self,environment_interface,game_info,parent_node=None,parent_action=None,terminal=None,legal_actions=None):
+        self.environment = environment_interface
+        self.game_info = game_info
         self.parent_node = parent_node
         self.parent_action = parent_action
         self.successors = []
         self.depth = 0 if parent_node is None else self.parent_node.depth + 1
-        self.terminal = terminal
-        self.all_legal_actions = legal_actions
+        self.terminal = terminal if terminal != None else self.environment.is_terminal(info=game_info)
+        self.all_legal_actions = legal_actions if legal_actions != None else self.environment.get_legal_actions(info=game_info)
         self.non_expanded_legal_actions = legal_actions
-        self.content = content
         ### aux
         self.num_wins = 0
         self.num_losses = 0
         self.num_draws = 0
         self.num_chosen_by_parent = 0
         self.belongs_to_tree = None
-        self.state = state
-
+        
     ''' find '''
-    def find_successor_after_action(self,action, content = {}):
-        raise NotImplemented()
+    def find_successor_after_action(self,action):
+        new_observation, _ , done , new_game_info = self.environment.step(action,info=self.game_info)
+        legal_actions = self.environment.get_legal_actions(info=new_game_info)
+        return MCTSNode(self.environment,new_game_info,parent_node = self,parent_action=action,terminal = done,legal_actions=legal_actions)
 
-    def find_random_unexpanded_successor(self,content = {}):
+    def find_random_unexpanded_successor(self):
         random_idx = random.randint(0,len(self.non_expanded_legal_actions)-1)
         action = self.non_expanded_legal_actions[random_idx]
-        return self.find_successor_after_action(action,content)
+        return self.find_successor_after_action(action)
 
-    def find_rest_unexpanded_successors(self,content = {}):
+    def find_rest_unexpanded_successors(self):
         generation = []
         for action in self.non_expanded_legal_actions:
-            generation.append(self.find_successor_after_action(action,content))
+            generation.append(self.find_successor_after_action(action))
         return generation
 
     ''' append ''' 
@@ -51,13 +53,13 @@ class MCTSNode():
             self.get_non_expanded_legal_actions().remove(node.get_parent_action())
 
     ''' expand '''
-    def expand_random_successor(self,content = {}):
-        node = self.find_random_unexpanded_successor(content)
+    def expand_random_successor(self):
+        node = self.find_random_unexpanded_successor()
         self.append_successors_to_node([node])
         return node
 
-    def expand_rest_successors(self, content = {}):
-        nodes = self.find_rest_unexpanded_successors(content)
+    def expand_rest_successors(self):
+        nodes = self.find_rest_unexpanded_successors()
         self.append_successors_to_node(nodes)
         return nodes
 
@@ -67,7 +69,6 @@ class MCTSNode():
             return self.terminal
         else:
             raise ValueError("Impossible to get if is terminal state")
-
 
     def is_completely_expanded(self):
         return len(self.get_non_expanded_legal_actions()) == 0
@@ -82,17 +83,6 @@ class MCTSNode():
 
     def get_depth(self):
         return self.depth
-
-    def get_content(self):
-        return self.content
-
-    def get_content_item(self,key):
-        if key in self.content:
-            return self.content[key]
-        return None
-
-    def set_content_item(self,key,value):
-        self.content[key] = value
 
     def get_successors(self):
         return self.successors
@@ -109,12 +99,21 @@ class MCTSNode():
     def get_parent_action(self):
         return self.parent_action
 
-    def who_whon(self):
-        #Return -1 if tie, else return the num of the player who won
-        #raise error if asked when it isn't terminal
-        raise NotImplemented()
+    def get_winner(self):
+        if not self.is_terminal():
+            raise ValueError("Node is not Terminal")
+        return self.environment.get_winner(info=self.game_info)
 
+    def get_current_player(self):
+        return self.environment.get_current_player(info=self.game_info)
 
+    def get_current_observation(self):
+        return self.environment.get_current_observation(info=self.game_info)
+
+    def render(self):
+        return self.environment.get_current_observation(info=self.game_info)
+
+'''
 class Gomoku_MCTSNode(MCTSNode):
     def __init__(self,state, parent_node=None, parent_action=None, terminal=None,legal_actions=None,content: dict = {}):
         super().__init__(state,parent_node=parent_node, parent_action=parent_action, terminal=terminal, legal_actions=legal_actions, content = content)
@@ -175,19 +174,8 @@ class K_Row_MCTSNode(MCTSNode):
                 raise ValueError("ERRO NÃO É SUPOSTO O ÚLTIMO NÓ GANHAR")
             else:
                 return MCTS_LOSS
-
-            '''
-            if(self.state.winner == FIRST_PLAYER):
-                return MCTS_FIRST_PLAYER
-            elif(self.state.winner == SECOND_PLAYER):
-                return MCTS_SECOND_PLAYER
-            elif(self.state.winner == TIE):
-                return MCTS_TIE
-            else:
-                raise ValueError("Some weird value was returned in who_won")
-            '''
-
     
+'''          
 
 
 ''' Teste Gomoku

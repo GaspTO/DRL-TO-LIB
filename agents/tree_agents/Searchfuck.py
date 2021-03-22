@@ -3,9 +3,14 @@ import os
 import sys
 from os.path import dirname, abspath
 sys.path.append(dirname(dirname(abspath(__file__))))
+sys.path.append("/home/nizzel/Desktop/Tiago/Computer_Science/Tese/DRL-TO-LIB")
 import numpy
 from numpy.core.numeric import NaN, normalize_axis_tuple
-from agents.tree_agents.Node import Gomoku_MCTSNode, K_Row_MCTSNode, MCTS_FIRST_PLAYER, MCTS_TIE, MCTS_SECOND_PLAYER, MCTS_WIN, MCTS_LOSS
+#from agents.tree_agents.Node import Gomoku_MCTSNode, K_Row_MCTSNode, MCTS_FIRST_PLAYER, MCTS_TIE, MCTS_SECOND_PLAYER, MCTS_WIN, MCTS_LOSS
+from environments.k_row_interface import K_Row_Interface
+from environments.environment_utils import Players, Player, IN_GAME, TERMINAL
+
+from agents.tree_agents.Node import MCTSNode
 from collections import deque
 from math import sqrt,log
 import random
@@ -43,13 +48,14 @@ class MCTS_Search():
             self.expansion_phase()
             self.simulation_phase()
             self.backpropagation_phase()
+            if self.debug: self.debug_node(self.root)
 
 
     ''' Selection Phase '''
     def selection_phase(self):
         while self.current_node.is_completely_expanded() and not self.current_node.is_terminal():
             self.current_node = self.selection_criteria()
-            #print("Sel:\n" + str(self.current_node.get_content_item('state').board) )
+            if self.debug: print("Sel:\n" + str(self.current_node.render()) )
 
     def selection_criteria(self):
             log_N_vertex = log(self.current_node.num_chosen_by_parent)
@@ -64,7 +70,7 @@ class MCTS_Search():
     def expansion_phase(self):
         if not self.current_node.is_terminal():
             self.current_node = self.expansion_criteria()
-            #print("Ex:\n" + str(self.current_node.get_content_item('state').board) )
+            if self.debug: print("Ex:\n" + str(self.current_node.render()) )
 
     def expansion_criteria(self):
             node = self.current_node.expand_random_successor()
@@ -75,7 +81,7 @@ class MCTS_Search():
     def simulation_phase(self):
         while not self.current_node.is_terminal():
             self.current_node = self.fast_generation_policy()
-            #print("Sim:\n" + str(self.current_node.get_content_item('state').board) )
+            if self.debug: print("Sim:\n" + str(self.current_node.render()) )
 
     def fast_generation_policy(self):
             node = self.current_node.find_random_unexpanded_successor()
@@ -85,8 +91,9 @@ class MCTS_Search():
     ''' Backpropagation Phase '''
     def backpropagation_phase(self):
         self.last_node = self.current_node
-        winner = self.current_node.who_won()
-        if(winner == MCTS_TIE):
+        self.winner = self.current_node.get_winner()
+        '''
+        if(winner == Players.get_tie_player()):
             self.winner = None
         elif(winner == MCTS_WIN):
             self.winner = self.current_node.get_depth() % 2
@@ -94,6 +101,7 @@ class MCTS_Search():
         elif(winner == MCTS_LOSS):
             self.winner = (self.current_node.get_depth() -1) % 2 
             assert self.winner >= 0
+        '''
         '''
         if(winner == MCTS_FIRST_PLAYER):
             self.winner = 0
@@ -104,7 +112,11 @@ class MCTS_Search():
         else:
             raise ValueError("Some weird value returned in who won in backpropagation phase")
         '''
-        
+        if self.winner.get_number() == -1: print("TIE")
+        if self.winner.get_number() == 1: print("ONE")
+        if self.winner.get_number() == 2: print("TWO")
+        #print(self.winner.get_number())
+        '''
         if(self.debug == True):
             if(self.winner == None):
                 print("TIE")
@@ -112,7 +124,7 @@ class MCTS_Search():
                 print("FIRST")
             if(self.winner == 1):
                 print("SECOND")
-
+        '''
 
 
         while not self.current_node.is_root():
@@ -123,41 +135,28 @@ class MCTS_Search():
     def backpropagate_update_nodes(self):
         if self.current_node.belongs_to_tree == False:
             return
-        if self.winner == None:
+        if self.winner == Players.get_tie_player():
             self.current_node.num_draws += 1
-        elif self.winner == self.current_node.get_depth() % 2 and self.winner >= 0:
+        elif self.winner == self.current_node.get_current_player(): 
             self.current_node.num_wins += 1
-        elif self.winner == (self.current_node.get_depth() + 1) % 2 and self.winner >= 0:
-            self.current_node.num_losses += 1
         else:
-            raise ValueError("Weird Value in backpropagate update node")
+            self.current_node.num_losses += 1
         self.current_node.num_chosen_by_parent += 1
 
-
+    def debug_node(self,node):
+        for n in node.get_successors():
+            print("action:" + str(n.parent_action) + " times_chosen: " + str(n.num_chosen_by_parent) +  " losses: " + str(n.num_losses) + " wins: " + str(n.num_wins))
 
 
 
 '''
-env = K_RowEnv(board_shape=3, target_length=3)
-env.step(0)
-k_row_node = K_Row_MCTSNode(env.state)
-search = MCTS_Search(k_row_node,debug = True)
-search.run_n_playouts(100000)
+env = K_Row_Interface(board_shape=4, target_length=3)
+k_row_node = MCTSNode(env,env.get_game_info())
+search = MCTS_Search(k_row_node,debug = False)
+search.run_n_playouts(1000000)
 p = search.play_action(debug=True)
-print("hey " + str(p))
-print("c")
 '''
 
-
-
-''' Gomoku - Not going to work
-env = GomokuEnv('black','random',9)
-gom_node = Gomoku_Node(env.state)
-search = MCTS_Search(gom_node,num_of_players=2)
-search.run_n_playouts(5000)
-print(search.root.get_content_item('num_wins'))
-print(search.root.get_content_item('num_visits'))
-'''
 
 
 class MCTS_Search_attempt_muzero(MCTS_Search):
@@ -205,8 +204,7 @@ class MCTS_Search_attempt_muzero(MCTS_Search):
 
     def expansion_criteria(self):
             nodes = self.current_node.expand_rest_successors()
-            #current_board = self.current_node.state.board
-            current_board = self.current_node.state.get_two_boards()
+            current_board = self.current_node.get_current_observation()
             x = torch.from_numpy(current_board).float().unsqueeze(0).to(self.device)
             p = self.net(x)
             for node in nodes:
