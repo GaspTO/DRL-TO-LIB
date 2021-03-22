@@ -1,4 +1,4 @@
-from environments.adapter_environments.Simple_Playground_Env import Simple_Playground_Env
+from environments.Simple_Playground_Env import Simple_Playground_Env
 from agents.Base_Agent import Base_Agent
 import copy
 

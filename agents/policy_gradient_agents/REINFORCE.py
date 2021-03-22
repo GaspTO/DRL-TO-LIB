@@ -39,7 +39,9 @@ class REINFORCE(Base_Agent):
     """ test time """
     def play(self,states:np.array=None)->np.array:
         if states is None: raise ValueError('Needs a state batch #fixme')
-        raise ValueError('implement')
+        #print("play on Reinforce is broken - quickfix")
+        a,p = self.pick_action_and_get_probability(current_state=states)
+        return a
 
     """ Basic Operations """
     def reset_game(self):

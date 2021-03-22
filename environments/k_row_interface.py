@@ -7,14 +7,14 @@ class K_Row_Interface(Environment_Interface):
         self.environment = K_Row_Env(board_shape,target_length)
   
     def step(self,action,info=None):
-        if info is None: self.environment.step(action)
+        if info is None: return self.environment.step(action)
         return K_Row_Env(info=info).step(action)
         
     def reset(self):
         return self.environment.reset()
 
     def render(self,info=None):
-        if info is None: self.environment.render()
+        if info is None: return self.environment.render()
         return info["inner_state"].render()
 
     def close(self):

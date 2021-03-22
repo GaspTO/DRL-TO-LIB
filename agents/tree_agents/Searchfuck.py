@@ -20,8 +20,10 @@ import torch
       
 ''' Search Engine '''
 class MCTS_Search():
-    def __init__(self,root, initial_variables = {}, debug = False):
-        self.root = root
+    def __init__(self,environment,game_info = None, initial_variables = {}, debug = False):
+
+        if game_info == None: game_info = environment.get_game_info() 
+        self.root =  MCTSNode(environment,game_info)
         self.root.belongs_to_tree = True
         self.current_node = self.root
         self.variables = initial_variables

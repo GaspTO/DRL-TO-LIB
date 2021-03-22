@@ -240,30 +240,10 @@ class Base_Agent(Agent):
         for param in network.parameters():
             param.requires_grad = True
 
-
     ''' Helpful '''
     def get_environment_title(self):
         """Extracts name of environment from it"""
-        try:
-            name = self.environment.unwrapped.id
-        except AttributeError:
-            try:
-                if str(self.environment.unwrapped)[1:11] == "FetchReach": return "FetchReach"
-                elif str(self.environment.unwrapped)[1:8] == "AntMaze": return "AntMaze"
-                elif str(self.environment.unwrapped)[1:7] == "Hopper": return "Hopper"
-                elif str(self.environment.unwrapped)[1:9] == "Walker2d": return "Walker2d"
-                else:
-                    name = self.environment.spec.id.split("-")[0]
-            except AttributeError:
-                try:
-                    name = self.environment.get_id()
-                except:
-                    name = str(self.environment.env)
-                    if name[0:10] == "TimeLimit<": name = name[10:]
-                    name = name.split(" ")[0]
-                    if name[0] == "<": name = name[1:]
-                    if name[-3:] == "Env": name = name[:-3]
-        return name
+        return self.environment.get_name()
 
     def get_score_required_to_win(self):
         """Gets average score required to win game"""

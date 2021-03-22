@@ -145,7 +145,8 @@ class K_Row_State():
         return string
 
     def get_mask(self):
-        return (self.board_planes[0] + self.board_planes[1]).flatten()
+        a = (self.board_planes[0] + self.board_planes[1])
+        return np.where(a==OCCUPIED_PIECE,0,1).flatten()
 
     def set_status(self):
         ''' set self._winner and self._status'''
@@ -163,8 +164,6 @@ class K_Row_State():
                 if how_many_in_a_row == self.target_length:
                     return True
             return False
-
-
 
         current_player_board = self.board_planes[0]
         adversary_player_board = self.board_planes[1]
@@ -197,10 +196,7 @@ class K_Row_State():
         return K_Row_State(board_planes,FIRST_PLAYER,target_length)
 
 
-
-
 class K_Row_Env(gym.Env): 
-
     def __init__(self,board_shape = 3, target_length = 3,info=None):
         if info == None:
             self.target_length = target_length
