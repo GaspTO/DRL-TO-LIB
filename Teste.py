@@ -27,7 +27,13 @@ from agents.Base_Agent import Base_Agent, Config_Base_Agent
 from agents.policy_gradient_agents.REINFORCE import REINFORCE, Config_Reinforce
 from agents.policy_gradient_agents.REINFORCE_BASELINE import REINFORCE_BASELINE, Config_Reinforce_Baseline
 from agents.tree_agents.MCTS_Search import MCTS_Agent
-#from agents.tree_agents.DAGGER import DAGGER
+from agents.tree_agents.MCTS_RL_Search import MCTS_RL_Agent
+from agents.pato import pato
+from agents.tree_agents.gato import gato
+
+
+#from agents.tree_agents.MCTS_RL_Search import MCTS_RL_Agent
+from agents.tree_agents.DAGGER import DAGGER
 
 
 #from boom.REINFORCE_adv import REINFORCE_adv, Config_Reinforce_adv
@@ -77,13 +83,13 @@ class Policy_Re2(nn.Module):
         '''
         self.net = nn.Sequential(
             nn.Flatten(),
-            nn.Linear(32,80),
+            nn.Linear(18,300),
             nn.ReLU(),
-            nn.Linear(80,80),
+            nn.Linear(300,300),
             nn.ReLU(),
-            nn.Linear(80,80),
+            nn.Linear(300,300),
             nn.ReLU(),
-            nn.Linear(80,16)
+            nn.Linear(300,9)
 
         )
         
@@ -112,14 +118,16 @@ class Policy_Re2(nn.Module):
             nn.Linear(120,5*5))
         '''
 
-    def forward(self, x, mask=None):
+    def forward(self, x, mask=None, softmax=False):
         #self.x1 = x.view(x.size(0),-1)
         self.x1 = x
         self.logits = self.net(self.x1)
         if(mask is not None):
-            raise ValueError("MASK SHOULD BE NEGATIVE -1*10^8 https://arxiv.org/pdf/2006.14171.pdf")
-            self.logits = self.logits.mul(mask)
-        self.output = torch.softmax(self.logits,dim=1)
+            self.logits = torch.where(mask == 0,torch.tensor(-1e18),self.logits)
+            #raise ValueError("MASK SHOULD BE NEGATIVE -1*10^8 https://arxiv.org/pdf/2006.14171.pdf")
+            #self.logits = self.logits.mul(mask)
+        #self.output = torch.softmax(self.logits,dim=1)
+        self.output = self.logits if softmax == False else torch.softmax(self.logits,dim=1)
         return self.output
 
 
@@ -128,7 +136,7 @@ config = Config()
 config.debug_mode = False
 #config.environment = GomokuEnv('black','random',9)
 #config.environment = K_Row_Interface(board_shape=4, target_length=3)
-config.environment = Simple_Playground_Env(K_Row_Interface(board_shape=4, target_length=3))
+config.environment = Simple_Playground_Env(K_Row_Interface(board_shape=3, target_length=3))
 #config.environment = Simple_Self_Play(episodes_to_update=100,environment=config.environment)
 ''' --- ''' 
 config.file_to_save_data_results = "results/data_and_graphs/Cart_Pole_Results_Data.pkl"
@@ -202,7 +210,7 @@ config.exploration_worker_difference = 2.0
 
 ''' MAIN '''
 #todo these algorithms don't put new tensors on gpu if asked
-agent = REINFORCE(config_reinforce)
+#agent = REINFORCE(config_reinforce)
 #agent = REINFORCE_BASELINE(config_reinforce_baseline)
 
 #agent = REINFORCEadv_krow(config_reinforce)
@@ -219,8 +227,17 @@ agent = REINFORCE(config_reinforce)
 #agent = DDQN_krow(config_DDQN)
 #agent = A3C(config_A3C) 
 
-#agent = DAGGER(config_reinforce)
 
+
+
+
+
+
+
+
+
+
+agent = DAGGER(config_reinforce)
 
 
 config.environment.add_agent(MCTS_Agent(config_reinforce.environment.environment,n_iterations=25))

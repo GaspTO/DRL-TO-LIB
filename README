@@ -1,0 +1,6 @@
+Only supports markovian environments, meaning that the next state and rewards from the environment only depends on the previous state.
+
+
+If you need to implement something that is not markovian, turn it markovian.
+For instance, pass the previous observations that are relevant.
+

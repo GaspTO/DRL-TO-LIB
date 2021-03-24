@@ -47,6 +47,7 @@ class REINFORCE(Base_Agent):
     def reset_game(self):
         """Resets the game information so we are ready to play a new episode"""
         super().reset_game()
+        self.episode_states.append(self.state)
         self.episode_action_log_probabilities = []
         self.episode_critic_values = []
         self.episode_step_number = 0
@@ -59,6 +60,7 @@ class REINFORCE(Base_Agent):
                 self.learn()
             self.episode_step_number += 1
             self.state = self.next_state
+            self.episode_states.append(self.state)
         self.episode_number += 1
         if(self.debug_mode):
             self.log_updated_probabilities()
@@ -75,7 +77,6 @@ class REINFORCE(Base_Agent):
         
     def save_update_information(self):
         self.critic_value = self.get_critic_value() #needs to be here cause it might need next_state
-        self.episode_states.append(self.state)
         self.episode_actions.append(self.action)
         self.episode_next_states.append(self.next_state)
         self.episode_rewards.append(self.reward)

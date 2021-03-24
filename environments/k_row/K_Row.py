@@ -8,6 +8,7 @@ import numpy as np
 import gym
 from gym import spaces
 import torch
+sys.path.append("/home/nizzel/Desktop/Tiago/Computer_Science/Tese/DRL-TO-LIB")
 from environments.environment_utils import Players, IN_GAME, TERMINAL
 
 
@@ -177,10 +178,10 @@ class K_Row_State():
                     self._winner, self._status = player, TERMINAL
                     return
             for diagonal_number in range(-plane.shape[0]+1,plane.shape[1]):
-                if meets_objective(plane.diagonal(diagonal_number,axis1=0,axis2=1)) == True:
+                if meets_objective(plane.diagonal(diagonal_number)) == True:
                     self._winner, self._status = player, TERMINAL
                     return
-                if meets_objective(plane.diagonal(diagonal_number,axis1=1,axis2=0)) == True:
+                if meets_objective(np.flipud(plane).diagonal(diagonal_number)) == True:
                     self._winner, self._status = player, TERMINAL
                     return 
         assert self._winner == None
@@ -197,18 +198,18 @@ class K_Row_State():
 
 
 class K_Row_Env(gym.Env): 
-    def __init__(self,board_shape = 3, target_length = 3,info=None):
-        if info == None:
+    def __init__(self,board_shape = 3, target_length = 3,inner_state=None):
+        if inner_state == None:
             self.target_length = target_length
             if isinstance(board_shape, int):
                 self.board_shape = (board_shape, board_shape)
             assert len(self.board_shape) == 2  # invalid board shape
             self.reset()
         else:
-            self.k_row_state = info["inner_state"]
-            self.target_length = info["target_length"]
-            self.board_shape = info["board_shape"]
-            self.done = info["done"]
+            self.k_row_state = inner_state
+            self.target_length = inner_state.target_length
+            self.board_shape = inner_state.board_planes[0].shape
+            self.done = inner_state.is_terminal()
     
     def step(self, action):
         if self.done == True:   raise ValueError("Playing after game is done")
@@ -255,9 +256,35 @@ class K_Row_Env(gym.Env):
 
     def get_current_player(self):
         return self.k_row_state.get_current_player()
+
+    def get_action_size(self):
+        return self.board_shape[0] * self.board_shape[1]
+
+    def get_input_shape(self):
+        return self.k_row_state.board_planes.shape
         
 
 
 
 
 
+
+'''
+a = np.array(
+      [[[1., 0., 0., 1.],
+        [0., 1., 0., 0.],
+        [1., 0., 1., 1.],
+        [0., 0., 1., 1.]],
+
+       [[0., 1., 0., 1.],
+        [1., 0., 1., 1.],
+        [0., 0., 0., 1.],
+        [1., 1., 0., 0.]]])
+
+
+s = K_Row_State(a,get_current_player(a),3)        
+
+r = s.is_terminal()
+
+print(r)
+'''

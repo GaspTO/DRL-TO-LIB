@@ -1,11 +1,11 @@
 class Environment_Interface():  
-    def step(self,action,info=None):
+    def step(self,action,observation=None):
         raise NotImplementedError
         
     def reset(self):
         raise NotImplementedError
 
-    def render(self,info=None):
+    def render(self,observation=None):
         raise NotImplementedError
 
     def close(self):
@@ -20,28 +20,31 @@ class Environment_Interface():
     def needs_mask(self) -> bool:
         raise NotImplementedError
 
-    def get_mask(self,info=None):
+    def get_mask(self,observation=None):
         raise NotImplementedError
 
-    def get_current_observation(self,info=None,human=False):
+    def get_current_observation(self,observation=None,human=False):
         raise NotImplementedError
 
-    def get_legal_actions(self,info=None):
+    def get_legal_actions(self,observation=None):
         raise NotImplementedError
 
-    def is_terminal(self, info=None) -> bool:
+    def is_terminal(self, observation=None) -> bool:
         raise NotImplementedError
 
     def get_game_info(self):
         raise NotImplementedError
 
-    def get_winner(self, info=None):
+    def get_winner(self, observation=None):
         raise NotImplementedError
 
-    def get_current_player(self,info=None):
+    def get_current_player(self,observation=None):
         raise NotImplementedError
-        
-    def _make_state_a_new(self,observation):
+
+    def get_action_size(self):
+        raise NotImplementedError
+    
+    def get_input_shape(self):
         raise NotImplementedError
 
     

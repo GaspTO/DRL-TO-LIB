@@ -1,27 +1,27 @@
-
 import sys
 from os.path import dirname, abspath
 sys.path.append(dirname(dirname(abspath(__file__))))
-sys.path.append("/home/nizzel/Desktop/Tiago/Computer_Science/Tese/DRL-TO-LIB")
+#sys.path.append("/home/nizzel/Desktop/Tiago/Computer_Science/Tese/DRL-TO-LIB")
 from agents.Agent import Agent
 from environments.k_row_interface import K_Row_Interface
 from environments.environment_utils import Players, Player, IN_GAME, TERMINAL
 from math import sqrt,log
 import random
+import numpy as np
 
 
 
 ''' Node '''
 class MCTS_Node():
-    def __init__(self,environment_interface,game_info,parent_node=None,parent_action=None,terminal=None,legal_actions=None):
+    def __init__(self,environment_interface,observation,parent_node=None,parent_action=None,terminal=None,legal_actions=None):
         self.environment = environment_interface
-        self.game_info = game_info
+        self.observation = observation
         self.parent_node = parent_node
         self.parent_action = parent_action
         self.successors = []
         self.depth = 0 if parent_node is None else self.parent_node.depth + 1
-        self.terminal = terminal if terminal != None else self.environment.is_terminal(info=game_info)
-        self.all_legal_actions = legal_actions if legal_actions != None else self.environment.get_legal_actions(info=game_info)
+        self.terminal = terminal if terminal != None else self.environment.is_terminal(observation=observation)
+        self.all_legal_actions = legal_actions if legal_actions != None else self.environment.get_legal_actions(observation=observation)
         self.non_expanded_legal_actions = legal_actions
         ### aux
         self.num_wins = 0
@@ -32,9 +32,9 @@ class MCTS_Node():
         
     ''' find '''
     def find_successor_after_action(self,action):
-        new_observation, _ , done , new_game_info = self.environment.step(action,info=self.game_info)
-        legal_actions = self.environment.get_legal_actions(info=new_game_info)
-        return MCTS_Node(self.environment,new_game_info,parent_node = self,parent_action=action,terminal = done,legal_actions=legal_actions)
+        new_observation, _ , done , new_game_info = self.environment.step(action,observation=self.observation)
+        legal_actions = self.environment.get_legal_actions(observation=new_observation)
+        return MCTS_Node(self.environment,new_observation,parent_node = self,parent_action=action,terminal = done,legal_actions=legal_actions)
 
     def find_random_unexpanded_successor(self):
         random_idx = random.randint(0,len(self.non_expanded_legal_actions)-1)
@@ -103,45 +103,68 @@ class MCTS_Node():
     def get_winner(self):
         if not self.is_terminal():
             raise ValueError("Node is not Terminal")
-        return self.environment.get_winner(info=self.game_info)
+        return self.environment.get_winner(observation=self.observation)
 
     def get_current_player(self):
-        return self.environment.get_current_player(info=self.game_info)
+        return self.environment.get_current_player(observation=self.observation)
 
     def get_current_observation(self):
-        return self.environment.get_current_observation(info=self.game_info)
+        return self.environment.get_current_observation(observation=self.observation)
 
     def render(self):
-        return self.environment.get_current_observation(info=self.game_info)
+        return self.environment.get_current_observation(observation=self.observation)
 
       
 ''' Search Algorithm '''
 class MCTS_Search():
-    def __init__(self,environment,game_info = None,n_iterations = None,debug = False,):
-        if game_info == None: game_info = environment.get_game_info() 
-        self.root =  MCTS_Node(environment,game_info)
+    def __init__(self,environment,observation = None,n_iterations = None,exploration_weight = 1.0, debug = False):
+        if observation is None: observation = environment.get_current_observation() 
+        self.environment = environment
+        self.root =  MCTS_Node(environment,observation)
         self.root.belongs_to_tree = True
         self.current_node = self.root
-        self.exploration_weight = 1
+        self.exploration_weight = exploration_weight
         self.debug = debug
         self.n_iterations = n_iterations
 
+    def get_play_probabilities(self, n_iterations = 0, debug = False):
+        if self.n_iterations != None:
+            assert self.n_iterations != None
+            n_iterations = self.n_iterations
+        self.run_n_playouts(n_iterations)
+        def score(node):
+            if node.num_chosen_by_parent == 0:
+                return float("0.")  # avoid unseen moves
+            return (node.num_losses + 0.5*node.num_draws) / node.num_chosen_by_parent 
+        action_probs = np.zeros(self.environment.get_action_size()) #the len(successors) is not always the action_size
+        for n in self.root.get_successors():
+            action_probs[n.parent_action] = score(n)
+        if(action_probs.sum() == 0.):
+            size = len(self.root.get_successors())
+            for n in self.root.get_successors():
+                action_probs[n.parent_action] = 1/size 
+        else:
+            action_probs = action_probs/action_probs.sum()
+        if(np.isnan(action_probs).any()):
+            print("crap")
+        return action_probs
 
     def play_action(self, n_iterations = 0, debug = False):
-            if self.n_iterations != None:
-                n_iterations = self.n_iterations
-            self.run_n_playouts(n_iterations)
-            def score(node):
-                if node.num_chosen_by_parent == 0:
-                    return float("-inf")  # avoid unseen moves
-                return (node.num_losses + 0.5*node.num_draws) / node.num_chosen_by_parent  # choose the board that made the opponent lose the most
-            best_action =  max(self.root.get_successors(), key=score).parent_action
+        if self.n_iterations != None:
+            assert self.n_iterations != None
+            n_iterations = self.n_iterations
+        self.run_n_playouts(n_iterations)
+        def score(node):
+            if node.num_chosen_by_parent == 0:
+                return float("-inf")  # avoid unseen moves
+            return (node.num_losses + 0.5*node.num_draws) / node.num_chosen_by_parent  # choose the board that made the opponent lose the most
+        best_action =  max(self.root.get_successors(), key=score).parent_action
 
-            if(self.debug == True or debug == True):
-                for n in self.root.get_successors():
-                    print("action:" + str(n.parent_action) + " score:" + str(score(n)))
-                print("best action chosen:" +  str(best_action))
-            return best_action
+        if(self.debug == True or debug == True):
+            for n in self.root.get_successors():
+                print("action:" + str(n.parent_action) + " score:" + str(score(n)))
+            print("best action chosen:" +  str(best_action))
+        return best_action
 
     def run_n_playouts(self,iterations):
         for n in range(iterations):
@@ -194,7 +217,8 @@ class MCTS_Search():
         self.last_node = self.current_node
         self.winner = self.current_node.get_winner()
         if self.debug == True:
-            if self.winner.get_number() == -1: print("TIE")
+            if self.winner.get_number() == -1: 
+                print("TIE")
             if self.winner.get_number() == 1: print("ONE")
             if self.winner.get_number() == 2: print("TWO")
 
@@ -221,14 +245,22 @@ class MCTS_Search():
 
 
 class MCTS_Agent(Agent):
-    def __init__(self,environment,n_iterations):
+    def __init__(self,environment,n_iterations,exploration_weight=1.0):
         super().__init__(environment)
         self.n_iterations = n_iterations
+        self.exploration_weight = exploration_weight
 
-    def play(self,info):
-        search = MCTS_Search(self.environment, game_info = info, n_iterations = self.n_iterations)
+    def play(self,observation=None):
+        if observation is None: observation = self.environment.get_current_observation()
+        search = MCTS_Search(self.environment, observation = observation, n_iterations = self.n_iterations,exploration_weight=self.exploration_weight)
         action = search.play_action()
         return action
+
+    def get_play_probabilities(self,observation=None):
+        if observation is None: observation = self.environment.get_current_observation()
+        search = MCTS_Search(self.environment, observation = observation, n_iterations = self.n_iterations,exploration_weight=self.exploration_weight)
+        probabilities = search.get_play_probabilities()
+        return probabilities
 
 ''' test search '''
 '''
