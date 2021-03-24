@@ -30,7 +30,8 @@ class DAGGER(REINFORCE):
     def reset_game(self):
         super().reset_game()
         self.episode_action_log_probability_vectors = []
-        self.episode_action_suggested_expert_probability_vectors = []
+        self.episode_action_expert_suggested_log_prob = []
+        self.episode_expert_actions = []
 
     def step(self):
         while not self.done:
@@ -51,7 +52,8 @@ class DAGGER(REINFORCE):
     def conduct_action(self):
         """Conducts an action in the environment"""
         self.expert_action = self.mcts(self.state)
-        self.action, self.log_probabilities, self.expert_prob = self.pick_action(expert_action=self.expert_action)
+        
+        self.action, self.log_probabilities, self.expert_log_prob = self.pick_action(expert_action=self.expert_action)
         #self.expert_probabilities = torch.tensor(self.mcts_rl(self.state))
         
         self.next_state, self.reward, done, _ = self.environment.step(self.action)
@@ -72,7 +74,7 @@ class DAGGER(REINFORCE):
         '''
         action_distribution = Categorical(action_values_copy) # this creates a distribution to sample from
         action = action_distribution.sample()
-        return action.item(), torch.log_softmax(action_values_logits,dim=1)[0][action],torch.softmax(action_values_logits,dim=1)[0][torch.tensor([expert_action])]
+        return action.item(), torch.log_softmax(action_values_logits,dim=1)[0][action],torch.log_softmax(action_values_logits,dim=1)[0][torch.tensor([expert_action])]
 
 
     def save_update_information(self):
@@ -82,7 +84,8 @@ class DAGGER(REINFORCE):
         self.episode_rewards.append(self.reward)
         self.episode_dones.append(self.done)
         self.episode_action_log_probability_vectors.append(self.log_probabilities)
-        self.episode_action_suggested_expert_probability_vectors.append(self.expert_prob)
+        self.episode_action_expert_suggested_log_prob.append(self.expert_log_prob)
+        self.episode_expert_actions.append(self.expert_action)
         self.total_episode_score_so_far += self.reward
 
     def mcts_rl(self,state):
@@ -104,11 +107,12 @@ class DAGGER(REINFORCE):
         #if torch.isnan(values).any():
         #    raise ValueError("values nan")
         #log_values = torch.log(values)
-        log_values = torch.stack(self.episode_action_log_probability_vectors,dim=1)
-        targets = torch.stack(self.episode_action_suggested_expert_probability_vectors,dim=1) 
+        #log_values = torch.stack(self.episode_action_log_probability_vectors,dim=1)
+        targets = torch.stack(self.episode_action_expert_suggested_log_prob,dim=1) 
         if torch.isnan(targets).any():
             raise ValueError("targets nan")
-        cross_entropy = -1 * targets * log_values
+        #cross_entropy = -1 * targets * log_values
+        cross_entropy = -1 * targets
         policy_loss = cross_entropy
         if torch.isnan(cross_entropy).any():
             print("po")
@@ -122,23 +126,23 @@ class DAGGER(REINFORCE):
         if torch.isnan(policy_loss).any():
             print("pato")
         self.take_optimisation_step(self.optimizer,policy,policy_loss,self.config.get_gradient_clipping_norm())
-        #self.log_updated_probabilities()
+        self.log_updated_probabilities()
         
-
+    
     def log_updated_probabilities(self,print_results=False):
         r = self.reward
         full_text = []
-        for s,a,p,e in zip(self.episode_states,self.episode_actions,self.episode_action_log_probability_vectors,self.episode_expert_probability_vectors):
+        for s,a,ae,elp in zip(self.episode_states,self.episode_actions,self.episode_expert_actions,self.episode_action_expert_suggested_log_prob):
             with torch.no_grad():
                 state = torch.from_numpy(s).float().unsqueeze(0).to(self.device)
                 mask = torch.tensor(self.environment.environment.get_mask(observation=s))
-            actor_values = torch.log_softmax(self.policy(state,mask=mask),dim=1)
-            text = """\r D_reward {0: .2f}, action: {1: 2d}, | expert_prob:{2:.10f} old_prob: {3: .10f}, new_prob: {4: .10f}"""
-            formatted_text = text.format(r,a,e[a],torch.exp(p[a]),torch.exp(actor_values[0][a]))
+            after_action_prob = torch.softmax(self.policy(state,mask=mask),dim=1)[0][ae]
+            text = """\r D_reward {0: .2f}, action: {1: 2d}, expert_action: {2: 2d} | expert_prev_prob:{3: .10f} expert_new_prob: {4: .10f}"""
+            formatted_text = text.format(r,a,ae,torch.exp(elp).item(),after_action_prob.item())
             if(print_results): print(formatted_text)
             full_text.append(formatted_text )
         self.logger.info("Updated probabilities and Loss After update:" + ''.join(full_text))
-
+    
 
 
 
