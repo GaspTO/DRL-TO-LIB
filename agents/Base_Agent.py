@@ -101,8 +101,8 @@ class Base_Agent(Agent):
         self.set_random_seeds(config.get_seed())
         self.environment = config.get_environment()
         self.environment_title = self.get_environment_title()
-        if(self.environment_title not in self.prepared_games):
-            raise ValueError("This game was not implemented")
+        #if(self.environment_title not in self.prepared_games):
+        #    raise ValueError("This game was not implemented")
         self.action_types = "dumb..." #todo fix me
         #self.action_types = "DISCRETE" if self.environment.action_space.dtype == np.int64 else "CONTINUOUS"
         self.action_size = self.config.get_output_size() #todo fixme
@@ -248,7 +248,7 @@ class Base_Agent(Agent):
     def get_score_required_to_win(self):
         """Gets average score required to win game"""
         if self.environment_title == "FetchReach": return -5
-        if self.environment_title in ["AntMaze", "Hopper", "Walker2d","Gomoku","K_Row"]:
+        if self.environment_title in ["AntMaze", "Hopper", "Walker2d","Gomoku","K_Row","Cart-Pole"]:
             #print("Score required to win set to infinity therefore no learning rate annealing will happen")
             return float("inf")
         try: return self.environment.unwrapped.reward_threshold
@@ -260,7 +260,7 @@ class Base_Agent(Agent):
 
     def get_trials(self):
         """Gets the number of trials to average a score over"""
-        if self.environment_title in ["AntMaze", "FetchReach", "Hopper", "Walker2d", "CartPole","Gomoku","K_Row"]: return 100
+        if self.environment_title in ["AntMaze", "FetchReach", "Hopper", "Walker2d", "CartPole","Gomoku","K_Row","Cart-Pole"]: return 100
         try: return self.environment.unwrapped.trials
         except AttributeError: return self.environment.spec.trials
     

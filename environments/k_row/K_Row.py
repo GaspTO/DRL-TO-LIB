@@ -216,7 +216,7 @@ class K_Row_Env(gym.Env):
         self.k_row_state = self.k_row_state.act(action)
         if self.k_row_state.is_terminal():
             self.done = True
-            reward = 1.0 #it won - the reward is always on the prespective of who won
+            reward = 1.0 if self.k_row_state.get_winner() != TIE_PLAYER else 0.0      #it won - the reward is always on the prespective of who won
         else:
             reward = 0.0
         return self.k_row_state.get_current_board(), reward, self.done, self.get_info()
@@ -282,9 +282,23 @@ a = np.array(
         [1., 1., 0., 0.]]])
 
 
+
 s = K_Row_State(a,get_current_player(a),3)        
 
 r = s.is_terminal()
 
 print(r)
+'''
+
+'''
+s = K_Row_Env(board_shape = 3, target_length = 3)
+s.step(0)
+s.step(8)
+s.step(2)
+s.step(1)
+s.step(4)
+s.step(6)
+s.step(3)
+s.step(7)
+print(s.render())
 '''

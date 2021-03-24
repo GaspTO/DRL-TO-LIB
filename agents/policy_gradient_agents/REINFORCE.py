@@ -71,6 +71,7 @@ class REINFORCE(Base_Agent):
         """Conducts an action in the environment"""
         self.action, self.probability = self.pick_action_and_get_probability()
         self.next_state, self.reward, done, _ = self.environment.step(self.action)
+        #self.environment.render()
         if self.config.get_clip_rewards(): self.reward =  max(min(self.reward, 1.0), -1.0)
         self.done = done
         self.save_update_information()
@@ -90,16 +91,16 @@ class REINFORCE(Base_Agent):
         if current_state is None: current_state = self.state
         input_state = torch.from_numpy(current_state).float().unsqueeze(0).to(self.device)
         action_values = self.policy(input_state)
-        action_values_copy = action_values.detach()
+        action_values_copy = torch.softmax(action_values,dim=1)
+        '''
         if(self.action_mask_required == True): #todo can't use the forward for this mask cause... critic_output
             mask = self.get_action_mask()
             unormed_action_values_copy =  action_values_copy.mul(mask)
             action_values_copy =  unormed_action_values_copy/unormed_action_values_copy.sum()
+        '''
         action_distribution = Categorical(action_values_copy) # this creates a distribution to sample from
         action = action_distribution.sample()
-        if(self.debug_mode): self.logger.info("Q values\n {} -- Action chosen {} Masked_Prob {:.5f} True_Prob {:.5f}".format(action_values, action.item(),action_values_copy[0][action].item(),action_values[0][action].item()))
-        else: self.logger.info("Action chosen {} Masked_Prob {:.5f} True_Prob {:.5f}".format(action.item(),action_values_copy[0][action].item(),action_values[0][action].item()))
-        return action.item(), action_values[0][action]
+        return action.item(), torch.softmax(action_values,dim=1)[0][action]
 
     def get_critic_value(self):
         return torch.tensor([0.])
@@ -135,6 +136,7 @@ class REINFORCE(Base_Agent):
         self.advantages = self.all_discounted_returns - torch.cat(episode_critic_values)
 
         action_log_probabilities_for_all_episodes = torch.cat(episode_log_probs)
+        #actor_loss_values = -1 * action_log_probabilities_for_all_episodes * self.advantages
         actor_loss_values = -1 * action_log_probabilities_for_all_episodes * self.advantages
         self.actor_loss =   actor_loss_values.mean() * alpha
         return self.actor_loss
@@ -162,7 +164,7 @@ class REINFORCE(Base_Agent):
         for s,a,l in zip(self.episode_states,self.episode_actions,self.episode_action_log_probabilities):
             with torch.no_grad():
                 state = torch.from_numpy(s).float().unsqueeze(0).to(self.device)
-            actor_values = self.policy(state)
+            actor_values = torch.softmax(self.policy(state),dim=1)
             text = """\r D_reward {0: .2f}, action: {1: 2d}, | old_prob: {2: .10f}, new_prob: {3: .10f}"""
             formatted_text = text.format(r,a,math.exp(l),actor_values[0][a].item())
             if(print_results): print(formatted_text)

@@ -8,8 +8,10 @@ import gym
 import torch
 import torch.nn as nn
 
+''' environments'''
 from environments.gomoku.Gomoku import GomokuEnv
 from environments.k_row_interface import K_Row_Interface
+from environments.Cart_Pole_Interface import Cart_Pole_Interface
 from environments.Simple_Playground_Env import Simple_Playground_Env
 from environments.Simple_Self_Play import Simple_Self_Play
 
@@ -83,13 +85,13 @@ class Policy_Re2(nn.Module):
         '''
         self.net = nn.Sequential(
             nn.Flatten(),
-            nn.Linear(18,300),
+            nn.Linear(4,300),
             nn.ReLU(),
             nn.Linear(300,300),
             nn.ReLU(),
             nn.Linear(300,300),
             nn.ReLU(),
-            nn.Linear(300,9)
+            nn.Linear(300,2)
 
         )
         
@@ -134,9 +136,10 @@ class Policy_Re2(nn.Module):
 """ Config """
 config = Config()
 config.debug_mode = False
+config.environment = Cart_Pole_Interface()
 #config.environment = GomokuEnv('black','random',9)
 #config.environment = K_Row_Interface(board_shape=4, target_length=3)
-config.environment = Simple_Playground_Env(K_Row_Interface(board_shape=3, target_length=3))
+#config.environment = Simple_Playground_Env(K_Row_Interface(board_shape=3, target_length=3))
 #config.environment = Simple_Self_Play(episodes_to_update=100,environment=config.environment)
 ''' --- ''' 
 config.file_to_save_data_results = "results/data_and_graphs/Cart_Pole_Results_Data.pkl"
@@ -171,8 +174,8 @@ config.epsilon_decay_rate_denominator = 1
 
 """ Config_Reinforce """
 config_reinforce = Config_Reinforce(config_base_agent)
-config_reinforce.discount_rate = 0.95
-config_reinforce.learning_rate = 2e-12
+config_reinforce.discount_rate = 0.99
+config_reinforce.learning_rate = 2e-4 #2e-12
 
 """ Config_Reinforce_Tree """
 config_reinforce_tree = Config_Reinforce_Tree(config_reinforce)
@@ -210,7 +213,7 @@ config.exploration_worker_difference = 2.0
 
 ''' MAIN '''
 #todo these algorithms don't put new tensors on gpu if asked
-#agent = REINFORCE(config_reinforce)
+agent = REINFORCE(config_reinforce)
 #agent = REINFORCE_BASELINE(config_reinforce_baseline)
 
 #agent = REINFORCEadv_krow(config_reinforce)
@@ -229,19 +232,12 @@ config.exploration_worker_difference = 2.0
 
 
 
-
-
-
-
-
-
-
-
-
+'''
+config.environment = Simple_Playground_Env(config.environment)
 agent = DAGGER(config_reinforce)
-
-
 config.environment.add_agent(MCTS_Agent(config_reinforce.environment.environment,n_iterations=25))
+'''
+
 game_scores, rolling_scores, time_taken = agent.run_n_episodes(num_episodes=100000)
 
 
