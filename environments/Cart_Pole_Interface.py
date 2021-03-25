@@ -7,12 +7,14 @@ class Cart_Pole_Interface():
         self.environment.reset()
 
     def step(self,action,observation=None):
+        if observation is not None: raise ValueError("The Dynamic Observation environment setup isn't implemented")
         return self.environment.step(action)
         
     def reset(self):
         return self.environment.reset()
 
     def render(self,observation=None):
+        if observation is not None: raise ValueError("The Dynamic Observation environment setup isn't implemented")
         return self.environment.render()
 
     def close(self):
@@ -28,16 +30,19 @@ class Cart_Pole_Interface():
         return False
 
     def get_mask(self,observation=None):
-        #raise ValueError("Cart-Pole does not need mask")
-        return [1,1]
+        if observation is not None: raise ValueError("The Dynamic Observation environment setup isn't implemented")
+        return [1,1] #todo isn't suppose to return a mask
 
     def get_current_observation(self,observation=None,human=False):
+        if observation is not None: raise ValueError("The Dynamic Observation environment setup isn't implemented")
         return np.array(self.environment.state)
 
     def get_legal_actions(self,observation=None):
+        if observation is not None: raise ValueError("The Dynamic Observation environment setup isn't implemented")
         return np.array([1,1])
 
     def is_terminal(self, observation=None) -> bool:
+        if observation is not None: raise ValueError("The Dynamic Observation environment setup isn't implemented")
         return self.environment.steps_beyond_done is not None #it's None when playing
 
     def get_game_info(self):

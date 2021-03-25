@@ -35,7 +35,7 @@ from agents.tree_agents.gato import gato
 
 
 #from agents.tree_agents.MCTS_RL_Search import MCTS_RL_Agent
-from agents.tree_agents.DAGGER import DAGGER
+from agents.tree_agents.DAGGER_Replay_follow_action import DAGGER
 
 
 #from boom.REINFORCE_adv import REINFORCE_adv, Config_Reinforce_adv
@@ -84,14 +84,14 @@ class Policy_Re2(nn.Module):
         )
         '''
         self.net = nn.Sequential(
-            nn.Flatten(),
-            nn.Linear(4,300),
+            nn.Flatten(start_dim=1),
+            nn.Linear(18,300),
             nn.ReLU(),
             nn.Linear(300,300),
             nn.ReLU(),
             nn.Linear(300,300),
             nn.ReLU(),
-            nn.Linear(300,2)
+            nn.Linear(300,9)
 
         )
         
@@ -136,9 +136,9 @@ class Policy_Re2(nn.Module):
 """ Config """
 config = Config()
 config.debug_mode = False
-config.environment = Cart_Pole_Interface()
+#config.environment = Cart_Pole_Interface()
 #config.environment = GomokuEnv('black','random',9)
-#config.environment = K_Row_Interface(board_shape=4, target_length=3)
+config.environment = K_Row_Interface(board_shape=3, target_length=3)
 #config.environment = Simple_Playground_Env(K_Row_Interface(board_shape=3, target_length=3))
 #config.environment = Simple_Self_Play(episodes_to_update=100,environment=config.environment)
 ''' --- ''' 
@@ -175,7 +175,7 @@ config.epsilon_decay_rate_denominator = 1
 """ Config_Reinforce """
 config_reinforce = Config_Reinforce(config_base_agent)
 config_reinforce.discount_rate = 0.99
-config_reinforce.learning_rate = 2e-4 #2e-12
+config_reinforce.learning_rate = 2e-12 #2e-12
 
 """ Config_Reinforce_Tree """
 config_reinforce_tree = Config_Reinforce_Tree(config_reinforce)
@@ -212,8 +212,7 @@ config.exploration_worker_difference = 2.0
 
 
 ''' MAIN '''
-#todo these algorithms don't put new tensors on gpu if asked
-agent = REINFORCE(config_reinforce)
+#agent = REINFORCE(config_reinforce)
 #agent = REINFORCE_BASELINE(config_reinforce_baseline)
 
 #agent = REINFORCEadv_krow(config_reinforce)
@@ -232,11 +231,14 @@ agent = REINFORCE(config_reinforce)
 
 
 
-'''
-config.environment = Simple_Playground_Env(config.environment)
+
+config_reinforce.environment = Simple_Playground_Env(config.environment)
 agent = DAGGER(config_reinforce)
-config.environment.add_agent(MCTS_Agent(config_reinforce.environment.environment,n_iterations=25))
-'''
+config_reinforce.environment.add_agent(MCTS_Agent(config_reinforce.environment.environment,n_iterations=25))
+#todo these algorithms don't put new tensors on gpu if asked
+#todo need to creat configs
+#todo actions should be tensors and not integers
+#todo should not use the word state, but observation and next_observation
 
 game_scores, rolling_scores, time_taken = agent.run_n_episodes(num_episodes=100000)
 

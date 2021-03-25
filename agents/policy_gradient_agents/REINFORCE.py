@@ -71,7 +71,6 @@ class REINFORCE(Base_Agent):
         """Conducts an action in the environment"""
         self.action, self.probability = self.pick_action_and_get_probability()
         self.next_state, self.reward, done, _ = self.environment.step(self.action)
-        #self.environment.render()
         if self.config.get_clip_rewards(): self.reward =  max(min(self.reward, 1.0), -1.0)
         self.done = done
         self.save_update_information()
