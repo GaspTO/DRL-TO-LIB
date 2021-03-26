@@ -19,7 +19,7 @@ import numpy as np
 import math
 from utilities.data_structures.Replay_Buffer import Replay_Buffer
 
-Data = namedtuple('Data', ['state', 'action'])
+Data = namedtuple('Data', ['state', 'action','mask'])
 
 class DAGGER(REINFORCE):
     agent_name = "DAGGER"
@@ -62,7 +62,6 @@ class DAGGER(REINFORCE):
         #self.expert_probabilities = torch.tensor(self.mcts_rl(self.state))
         
         self.next_state, self.reward, done, _ = self.environment.step(self.action)
-        self.mask 
         if self.config.get_clip_rewards(): self.reward =  max(min(self.reward, 1.0), -1.0)
         self.done = done
         self.save_update_information()
@@ -91,8 +90,7 @@ class DAGGER(REINFORCE):
         self.episode_action_log_probability_vectors.append(self.log_probabilities)
         self.episode_action_expert_suggested_log_prob.append(self.expert_log_prob)
         self.episode_expert_actions.append(self.expert_action)
-        self.dataset.append(Data(self.state,self.expert_action))
-        self.mask_dataset.append(self.mask)
+        self.dataset.append(Data(self.state,self.expert_action,self.mask))
         self.total_episode_score_so_far += self.reward
 
     def mcts_rl(self,state):
@@ -115,9 +113,9 @@ class DAGGER(REINFORCE):
          
         size_of_batch = len(self.episode_actions) #todo change
         for index in range(size_of_batch,n,size_of_batch):
-            states = np.stack([self.dataset[index-i-1][0] for i in range(0,size_of_batch)])
-            actions = np.stack([self.dataset[index-i-1][1] for i in range(0,size_of_batch)])
-            masks = torch.stack([self.mask_dataset[index-i-1] for i in range(0,size_of_batch)])
+            states = np.stack([self.dataset[i][0] for i in range(index-size_of_batch,index)])
+            actions = np.stack([self.dataset[i][1] for i in range(index-size_of_batch,index)])
+            masks = torch.tensor(np.stack([self.dataset[i][2] for i in range(index-size_of_batch,index)]))
             assert len(states) == len(actions) and len(masks) == len(actions) and len(actions) == size_of_batch
             input_data = torch.from_numpy(states).float().to("cuda" if torch.cuda.is_available() else "cpu")
             output = self.policy(input_data,mask=masks)
@@ -125,9 +123,11 @@ class DAGGER(REINFORCE):
             assert type(actions[0]) == np.int64
             loss = [-1 * output_log[idx][actions[idx]] for idx in range(size_of_batch)]
             policy_loss = torch.stack(loss).mean()
+            print(policy_loss)
             self.take_optimisation_step(self.optimizer,policy,policy_loss,self.config.get_gradient_clipping_norm())
             #todo this 500 is for config
         #self.dataset = self.dataset[-500:]
+        
         self.dataset = []
         self.logger.info("time:{0:.10f}".format(time()-start))
         self.log_updated_probabilities()
