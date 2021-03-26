@@ -6,6 +6,7 @@ import random
 import numpy as np
 import torch
 import time
+import datetime
 from torch.utils.tensorboard import SummaryWriter
 from torch.optim import optimizer
 from utilities.data_structures.Config import Config
@@ -278,7 +279,8 @@ class Base_Agent(Agent):
     """ Information """
     def setup_logger(self):
         """Sets up the logger"""
-        filename = "Training.log"
+        date_time = datetime.datetime.now()
+        filename = "traininglogs/Training_" + date_time.strftime("%Y-%m-%d_%H:%M:%S") + ".log"
         try:
             if os.path.isfile(filename):
                 os.remove(filename)

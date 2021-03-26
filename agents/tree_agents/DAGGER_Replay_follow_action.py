@@ -109,14 +109,15 @@ class DAGGER(REINFORCE):
 
     def learn(self):
         policy = self.policy
-        n = len(self.dataset)
+        n = len(self.dataset) + 1
         start = time()
-        iteration = 0
-        size_of_batch = 8
+        #todo size of batch for config
+         
+        size_of_batch = len(self.episode_actions) #todo change
         for index in range(size_of_batch,n,size_of_batch):
-            states = np.stack([self.dataset[index-i][0] for i in range(0,size_of_batch)])
-            actions = np.stack([self.dataset[index-i][1] for i in range(0,size_of_batch)])
-            masks = torch.stack([self.mask_dataset[index-i] for i in range(0,size_of_batch)])
+            states = np.stack([self.dataset[index-i-1][0] for i in range(0,size_of_batch)])
+            actions = np.stack([self.dataset[index-i-1][1] for i in range(0,size_of_batch)])
+            masks = torch.stack([self.mask_dataset[index-i-1] for i in range(0,size_of_batch)])
             assert len(states) == len(actions) and len(masks) == len(actions) and len(actions) == size_of_batch
             input_data = torch.from_numpy(states).float().to("cuda" if torch.cuda.is_available() else "cpu")
             output = self.policy(input_data,mask=masks)
@@ -125,10 +126,12 @@ class DAGGER(REINFORCE):
             loss = [-1 * output_log[idx][actions[idx]] for idx in range(size_of_batch)]
             policy_loss = torch.stack(loss).mean()
             self.take_optimisation_step(self.optimizer,policy,policy_loss,self.config.get_gradient_clipping_norm())
-        self.dataset = self.dataset[-500:]
+            #todo this 500 is for config
+        #self.dataset = self.dataset[-500:]
+        self.dataset = []
         self.logger.info("time:{0:.10f}".format(time()-start))
-        #self.dataset = self.dataset[-1000:]
         self.log_updated_probabilities()
+        assert len(self.dataset) < 10
         
         
 
