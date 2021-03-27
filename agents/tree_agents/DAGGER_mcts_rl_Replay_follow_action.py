@@ -4,6 +4,8 @@ from agents.policy_gradient_agents.REINFORCE import REINFORCE, Config_Reinforce
 from agents.tree_agents.MCTS_Search import MCTS_Agent
 from agents.tree_agents.MCTS_RL_Search import MCTS_RL_Agent
 from torch.distributions import Categorical
+from collections import namedtuple
+from time import sleep, time
 
 #from agents.tree_agents.MCTS_RL_Search import MCTS_RL_Agent
 
@@ -15,8 +17,9 @@ import torch.optim as optim
 import torch
 import numpy as np
 import math
+from utilities.data_structures.Replay_Buffer import Replay_Buffer
 
-
+Data = namedtuple('Data', ['state', 'action','mask'])
 
 class DAGGER(REINFORCE):
     agent_name = "DAGGER"
@@ -26,6 +29,8 @@ class DAGGER(REINFORCE):
         self.expert = expert
         self.optimizer = optim.Adam(self.policy.parameters(), lr=2e-05)
         self.trajectories = []
+        self.dataset = []
+        self.mask_dataset = []
 
     def reset_game(self):
         super().reset_game()
@@ -51,8 +56,9 @@ class DAGGER(REINFORCE):
 
     def conduct_action(self):
         """Conducts an action in the environment"""
+        #self.expert_action = self.mcts(self.state) 
         self.expert_action = self.mcts_rl(self.state)
-        
+        self.mask = self.get_action_mask()
         self.action, self.log_probabilities, self.expert_log_prob = self.pick_action(expert_action=self.expert_action)
         #self.expert_probabilities = torch.tensor(self.mcts_rl(self.state))
         
@@ -78,7 +84,6 @@ class DAGGER(REINFORCE):
 
 
     def save_update_information(self):
-        self.critic_value = self.get_critic_value() #needs to be here cause it might need next_state
         self.episode_actions.append(self.action)
         self.episode_next_states.append(self.next_state)
         self.episode_rewards.append(self.reward)
@@ -86,6 +91,7 @@ class DAGGER(REINFORCE):
         self.episode_action_log_probability_vectors.append(self.log_probabilities)
         self.episode_action_expert_suggested_log_prob.append(self.expert_log_prob)
         self.episode_expert_actions.append(self.expert_action)
+        self.dataset.append(Data(self.state,self.expert_action,self.mask))
         self.total_episode_score_so_far += self.reward
 
     def mcts_rl(self,state):
@@ -101,33 +107,38 @@ class DAGGER(REINFORCE):
         return action
 
     def learn(self):
-        #output = torch.tensor(self.expert.play(np.array(self.episode_states)))
         policy = self.policy
-        #values = torch.stack(self.episode_action_probability_vectors)
-        #if torch.isnan(values).any():
-        #    raise ValueError("values nan")
-        #log_values = torch.log(values)
-        #log_values = torch.stack(self.episode_action_log_probability_vectors,dim=1)
-        targets = torch.stack(self.episode_action_expert_suggested_log_prob,dim=1) 
-        if torch.isnan(targets).any():
-            raise ValueError("targets nan")
-        #cross_entropy = -1 * targets * log_values
-        cross_entropy = -1 * targets
-        policy_loss = cross_entropy
-        if torch.isnan(cross_entropy).any():
-            print("po")
-        '''
-        cross_entropy = torch.where(cross_entropy == float("nan"),torch.tensor(0.),cross_entropy.float())
-        print("...teste:" +  str(torch.exp(self.episode_action_log_probability_vectors[-1])) + "..." + str(self.episode_expert_probability_vectors[-1]) )
-        #cross_entropy = -1*self.episode_expert_probability_vectors[0] * self.episode_action_log_probability_vectors[0]
-        policy_loss = cross_entropy.sum(dim=0)
-        '''
-        policy_loss = policy_loss.mean()
-        if torch.isnan(policy_loss).any():
-            print("pato")
-        self.take_optimisation_step(self.optimizer,policy,policy_loss,self.config.get_gradient_clipping_norm())
+        n = len(self.dataset) + 1
+        start = time()
+        #todo size of batch for config
+         
+        size_of_batch = len(self.episode_actions) #todo change
+        size_of_batch = 6
+        for index in range(size_of_batch,n,size_of_batch):
+            states = np.stack([self.dataset[i][0] for i in range(index-size_of_batch,index)])
+            actions = np.stack([self.dataset[i][1] for i in range(index-size_of_batch,index)])
+            masks = torch.tensor(np.stack([self.dataset[i][2] for i in range(index-size_of_batch,index)]))
+            assert len(states) == len(actions) and len(masks) == len(actions) and len(actions) == size_of_batch
+            input_data = torch.from_numpy(states).float().to("cuda" if torch.cuda.is_available() else "cpu")
+            output = self.policy(input_data,mask=masks)
+            output_log = torch.log_softmax(output,dim=1)
+            assert type(actions[0]) == np.int64
+            loss = [-1 * output_log[idx][actions[idx]] for idx in range(size_of_batch)]
+            policy_loss = torch.stack(loss).mean()
+            print(policy_loss)
+            self.take_optimisation_step(self.optimizer,policy,policy_loss,self.config.get_gradient_clipping_norm())
+            #todo this 500 is for config
+        #self.dataset = self.dataset[-500:]
+        
+        self.dataset = self.dataset[-20:]
+        self.logger.info("time:{0:.10f}".format(time()-start))
         self.log_updated_probabilities()
         
+        
+        
+
+    def time_to_learn(self):
+        return self.done        
     
     def log_updated_probabilities(self,print_results=False):
         r = self.reward
