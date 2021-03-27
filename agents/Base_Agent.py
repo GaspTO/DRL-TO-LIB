@@ -291,7 +291,7 @@ class Base_Agent(Agent):
         # create a file handler
         handler = logging.FileHandler(filename)
         handler.setLevel(logging.INFO)
-        # create a logging format
+        # create a logging format 
         formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
         handler.setFormatter(formatter)
         # add the handlers to the logger
