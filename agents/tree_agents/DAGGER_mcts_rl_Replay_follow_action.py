@@ -98,6 +98,7 @@ class DAGGER(REINFORCE):
         #todo some things in here need config
         search = MCTS_RL_Agent(self.environment.environment,100,self.policy,self.device,exploration_weight=5.0)
         action = search.play(state)
+        #print("----------------\n")
         return action
 
     def mcts(self,state):
@@ -133,7 +134,7 @@ class DAGGER(REINFORCE):
         self.dataset = self.dataset[-20:]
         self.logger.info("time:{0:.10f}".format(time()-start))
         self.log_updated_probabilities()
-        
+
         
         
 

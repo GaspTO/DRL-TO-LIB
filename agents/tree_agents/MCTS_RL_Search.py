@@ -54,6 +54,7 @@ class MCTS_RL_Search(MCTS_Search):
             x = torch.from_numpy(current_board).float().unsqueeze(0).to(self.device)
             with torch.no_grad():
                 p = self.network(x)
+                p = torch.softmax(p,dim=1)
             for node in nodes:
                 node.p = p[0][node.parent_action]
                 node.belongs_to_tree = True
@@ -73,7 +74,7 @@ class MCTS_RL_Agent(Agent):
     def play(self,observation=None):
         if observation is None: observation = self.environment.get_current_observation()
         search = MCTS_RL_Search(self.environment,self.network,self.device,observation = observation,n_iterations=self.n_iterations,exploration_weight=self.exploration_weight,debug=self.debug)
-        action = search.play_action()
+        action = search.play_action(debug=False)
         return action
 
     def get_play_probabilities(self,observation=None):
