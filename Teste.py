@@ -35,7 +35,7 @@ from agents.tree_agents.gato import gato
 
 
 #from agents.tree_agents.MCTS_RL_Search import MCTS_RL_Agent
-from agents.tree_agents.DAGGER_Replay_follow_action import DAGGER
+from agents.tree_agents.DAGGER_mcts_rl_simple_follow_action import DAGGER
 
 
 #from boom.REINFORCE_adv import REINFORCE_adv, Config_Reinforce_adv
