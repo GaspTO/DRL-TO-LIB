@@ -9,12 +9,12 @@ import numpy as np
 import random
 
 class MCTS_RL_Search(MCTS_Search):
-    def __init__(self,environment,network,device,observation = None,n_iterations=None,exploration_weight = 1.0,debug = False):
-        super().__init__(environment,observation = observation,n_iterations = n_iterations,exploration_weight=exploration_weight,debug = debug)
+    def __init__(self,environment,network,device,observation = None,n_iterations=None,exploration_weight = 1.0,debug = False,logger=None):
+        super().__init__(environment,observation = observation,n_iterations = n_iterations,exploration_weight=exploration_weight,debug = debug,logger=logger)
         assert network is not None
         self.network = network
         self.device = device
-
+        
     def get_play_probabilities(self, n_iterations = 0, debug = False):
         if self.n_iterations != None:
             assert self.n_iterations != None
@@ -53,7 +53,7 @@ class MCTS_RL_Search(MCTS_Search):
             current_board = self.current_node.get_current_observation()
             x = torch.from_numpy(current_board).float().unsqueeze(0).to(self.device)
             with torch.no_grad():
-                p = self.network(x)
+                p = self.network(x,torch.tensor(self.current_node.get_mask()))
                 p = torch.softmax(p,dim=1)
             for node in nodes:
                 node.p = p[0][node.parent_action]
@@ -63,17 +63,18 @@ class MCTS_RL_Search(MCTS_Search):
 
 
 class MCTS_RL_Agent(Agent):
-    def __init__(self,environment,n_iterations,network,device,exploration_weight = 1.0,debug=False):
+    def __init__(self,environment,n_iterations,network,device,exploration_weight = 1.0,debug=False,logger=None):
         super().__init__(environment)
         self.n_iterations = n_iterations
         self.network = network
         self.device = device
         self.exploration_weight = exploration_weight
         self.debug = debug
+        self.logger = logger
 
     def play(self,observation=None):
         if observation is None: observation = self.environment.get_current_observation()
-        search = MCTS_RL_Search(self.environment,self.network,self.device,observation = observation,n_iterations=self.n_iterations,exploration_weight=self.exploration_weight,debug=self.debug)
+        search = MCTS_RL_Search(self.environment,self.network,self.device,observation = observation,n_iterations=self.n_iterations,exploration_weight=self.exploration_weight,debug=self.debug,logger=self.logger)
         action = search.play_action(debug=False)
         return action
 

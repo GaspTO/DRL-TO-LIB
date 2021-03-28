@@ -120,7 +120,7 @@ class Policy_Re2(nn.Module):
             nn.Linear(120,5*5))
         '''
 
-    def forward(self, x, mask=None, softmax=False):
+    def forward(self, x, mask, softmax=False):
         #self.x1 = x.view(x.size(0),-1)
         self.x1 = x
         self.logits = self.net(self.x1)
@@ -239,6 +239,8 @@ config_reinforce.environment.add_agent(MCTS_Agent(config_reinforce.environment.e
 #todo need to creat configs
 #todo actions should be tensors and not integers
 #todo should not use the word state, but observation and next_observation
+#todo logger should be global
+
 
 game_scores, rolling_scores, time_taken = agent.run_n_episodes(num_episodes=100000)
 

@@ -96,9 +96,8 @@ class DAGGER(REINFORCE):
 
     def mcts_rl(self,state):
         #todo some things in here need config
-        search = MCTS_RL_Agent(self.environment.environment,100,self.policy,self.device,exploration_weight=5.0)
+        search = MCTS_RL_Agent(self.environment.environment,100,self.policy,self.device,exploration_weight=5.0,logger=self.logger)
         action = search.play(state)
-        #print("----------------\n")
         return action
 
     def mcts(self,state):
@@ -126,7 +125,6 @@ class DAGGER(REINFORCE):
             assert type(actions[0]) == np.int64
             loss = [-1 * output_log[idx][actions[idx]] for idx in range(size_of_batch)]
             policy_loss = torch.stack(loss).mean()
-            print(policy_loss)
             self.take_optimisation_step(self.optimizer,policy,policy_loss,self.config.get_gradient_clipping_norm())
             #todo this 500 is for config
         #self.dataset = self.dataset[-500:]
@@ -148,9 +146,11 @@ class DAGGER(REINFORCE):
             with torch.no_grad():
                 state = torch.from_numpy(s).float().unsqueeze(0).to(self.device)
                 mask = torch.tensor(self.environment.environment.get_mask(observation=s))
-            after_action_prob = torch.softmax(self.policy(state,mask=mask),dim=1)[0][ae]
-            text = """\r D_reward {0: .2f}, action: {1: 2d}, expert_action: {2: 2d} | expert_prev_prob:{3: .10f} expert_new_prob: {4: .10f}"""
-            formatted_text = text.format(r,a,ae,torch.exp(elp).item(),after_action_prob.item())
+            prob = torch.softmax(self.policy(state,mask=mask),dim=1)
+            after_action_prob = prob[0][ae]
+            prob_list = ["{0}=>{1:.2f}".format(i,prob[0][i]) for i in range(len(prob[0]))]
+            text = """\r D_reward {0: .2f}, action: {1: 2d}, expert_action: {2: 2d} | expert_prev_prob:{3: .10f} expert_new_prob: {4: .10f} ||| probs: {5}"""
+            formatted_text = text.format(r,a,ae,torch.exp(elp).item(),after_action_prob.item(),prob_list)
             if(print_results): print(formatted_text)
             full_text.append(formatted_text )
         self.logger.info("Updated probabilities and Loss After update:" + ''.join(full_text))

@@ -111,13 +111,16 @@ class MCTS_Node():
     def get_current_observation(self):
         return self.environment.get_current_observation(observation=self.observation)
 
+    def get_mask(self):
+        return self.environment.get_mask(observation=self.observation)
+
     def render(self):
         return self.environment.get_current_observation(observation=self.observation)
 
       
 ''' Search Algorithm '''
 class MCTS_Search():
-    def __init__(self,environment,observation = None,n_iterations = None,exploration_weight = 1.0, debug = False):
+    def __init__(self,environment,observation = None,n_iterations = None,exploration_weight = 1.0, debug = False, logger=None):
         if observation is None: observation = environment.get_current_observation() 
         self.environment = environment
         self.root =  MCTS_Node(environment,observation)
@@ -126,6 +129,7 @@ class MCTS_Search():
         self.exploration_weight = exploration_weight
         self.debug = debug
         self.n_iterations = n_iterations
+        self.logger = logger
 
     def get_play_probabilities(self, n_iterations = 0, debug = False):
         if self.n_iterations != None:
@@ -164,6 +168,13 @@ class MCTS_Search():
             for n in self.root.get_successors():
                 print("action:" + str(n.parent_action) + " score:" + str(score(n)))
             print("best action chosen:" +  str(best_action))
+        
+        if(self.logger != None):
+            succ = self.root.get_successors()
+            succ.sort(key=lambda x: x.parent_action)
+            self.logger.info("----------------------------------")
+            for n in succ:
+                self.logger.info("action:" + str(n.parent_action) + " score:" + str(score(n)) + " p:" + str(n.p)) 
         return best_action
 
     def run_n_playouts(self,iterations):
