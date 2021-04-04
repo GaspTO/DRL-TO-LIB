@@ -37,7 +37,7 @@ from agents.actor_critic_agents.A3C import A3C, Config_A3C
 TREE BASED
 '''
 from agents.tree_agents.MCTS_Agents import MCTS_Agent
-from agents.tree_agents.General_DAGGER import DAGGER
+from agents.tree_agents.DAGGER import DAGGER
 
 
 
