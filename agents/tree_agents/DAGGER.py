@@ -55,7 +55,7 @@ class DAGGER(Learning_Agent):
         * pick action
     """
     def step(self):
-        self.expert_action = self.mcts(self.observation,25)
+        self.expert_action = self.mcts(self.observation,100)
         self.action, info = self.pick_action()
         self.action_log_probability = info["action_log_probability"]
         self.expert_action_probability = torch.softmax(info["logits"],dim=1)[0][torch.tensor([self.expert_action])]
@@ -117,7 +117,8 @@ class DAGGER(Learning_Agent):
         super().reset()
         self.episode_expert_actions = []
         self.episode_expert_action_probabilities = []
-        self.episode_expert_action_log_probabilities = []  
+        self.episode_expert_action_log_probabilities = [] 
+        self.environment.play_first = self.environment.play_first == False
         
 
     """""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
@@ -130,14 +131,14 @@ class DAGGER(Learning_Agent):
         action = search.play(observation)
         return action
 
-    def mcts_simple_rl(self,observation):
+    def mcts_simple_rl(self,observation,n):
         #todo some things in here need config
-        search = MCTS_Agents.MCTS_Simple_RL_Agent(self.environment.environment,100,self.policy,self.device,exploration_weight=5.0)
+        search = MCTS_Agents.MCTS_Simple_RL_Agent(self.environment.environment,n,self.policy,self.device,exploration_weight=5.0)
         action = search.play(observation)
         return action
 
-    def mcts_exploratory_rl(self,observation):
-        search = MCTS_Agents.MCTS_Exploratory_RL_Agent(self.environment.environment,100,self.policy,self.device,exploration_weight=5.0)
+    def mcts_exploratory_rl(self,observation,n):
+        search = MCTS_Agents.MCTS_Exploratory_RL_Agent(self.environment.environment,n,self.policy,self.device,exploration_weight=5.0)
         action = search.play(observation)
         return action
 
