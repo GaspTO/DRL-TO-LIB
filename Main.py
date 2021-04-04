@@ -172,7 +172,7 @@ config.exploration_worker_difference = 2.0
 #agent = A3C(config_A3C) 
 
 
-config_reinforce.environment = Custom_Simple_Playground(config.environment,play_first=False)
+config_reinforce.environment = Custom_Simple_Playground(config.environment,play_first=True)
 agent = DAGGER(config_reinforce)
 config_reinforce.environment.add_agent(MCTS_Agent(config_reinforce.environment.environment,n_iterations=25))
 game_scores, rolling_scores, time_taken = agent.run_n_episodes(num_episodes=100000)

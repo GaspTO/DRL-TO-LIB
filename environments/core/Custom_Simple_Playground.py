@@ -53,7 +53,7 @@ class Custom_Simple_Playground(Custom_Environment):
     ''' just pass them '''
     def reset(self):
         if self.environment is None: raise ValueError('Need to set an environment to playground')
-        self.environment.reset()
+        next_state = self.environment.reset()
         if self.play_first ==  False:
             action = self.adversary_agent.play()
             next_state, _, _, _ = self.environment.step(action)
