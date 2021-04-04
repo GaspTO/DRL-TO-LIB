@@ -1,7 +1,7 @@
 import copy
 import torch.nn as nn
 import torch
-from agents.Base_Agent import Base_Agent
+from agents.Learning_Agent import Learning_Agent
 from agents.DQN_agents.DQN import DQN, Config_DQN
 
 
@@ -34,7 +34,7 @@ class DQN_With_Fixed_Q_Targets(DQN):
     def __init__(self, config):
         DQN.__init__(self, config)
         self.q_network_target = self.config.architecture()
-        Base_Agent.copy_model_over(from_model=self.q_network_local, to_model=self.q_network_target)
+        Learning_Agent.copy_model_over(from_model=self.q_network_local, to_model=self.q_network_target)
 
     def learn(self, transitions=None):
         super(DQN_With_Fixed_Q_Targets, self).learn(transitions=transitions)

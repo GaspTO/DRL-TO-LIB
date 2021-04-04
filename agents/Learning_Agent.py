@@ -1,4 +1,6 @@
-import logging
+#import logging
+from abc import abstractclassmethod, abstractmethod
+from utilities.logger import logger
 import os
 import sys
 import gym
@@ -14,10 +16,10 @@ from agents.Agent import Agent
 
 
 
-class Config_Base_Agent(Config):
+class Config_Learning_Agent(Config):
     def __init__(self,config=None):
         Config.__init__(self,config)
-        if(isinstance(config,Config_Base_Agent)):
+        if(isinstance(config,Config_Learning_Agent)):
             self.batch_size = config.get_batch_size()
             self.gradient_clipping_norm = config.get_gradient_clipping_norm()
             self.clip_rewards = config.get_clip_rewards()
@@ -92,9 +94,9 @@ class Config_Base_Agent(Config):
             raise ValueError("Epsilon Decay Rate Denominator Not Defined")
         
 
-class Base_Agent(Agent):
+class Learning_Agent(Agent):
     prepared_games = ["Gomoku","K_Row"]
-    def __init__(self, config: Config_Base_Agent):
+    def __init__(self, config: Config_Learning_Agent):
         self.setup_logger()
         self.debug_mode = config.get_debug_mode()
         self.writer = SummaryWriter()
@@ -107,11 +109,9 @@ class Base_Agent(Agent):
         self.action_types = "dumb..." #todo fix me
         #self.action_types = "DISCRETE" if self.environment.action_space.dtype == np.int64 else "CONTINUOUS"
         self.action_size = self.config.get_output_size() #todo fixme
-        self.action_mask_required = self.config.get_is_mask_needed()
         self.input_shape = 3 #todo fixme 
         #self.input_shape = self.config.get_input_dim() #todo fixme
-        self.average_score_required_to_win = self.get_score_required_to_win()
-        self.rolling_score_window = self.get_trials()
+        self.rolling_score_window = 100
         self.total_episode_score_so_far = 0
         self.game_full_episode_scores = []
         self.rolling_results = []
@@ -124,18 +124,26 @@ class Base_Agent(Agent):
         self.turn_off_exploration = False
         gym.logger.set_level(40)  
         self.log_game_info()
-        
 
-    """ Main Methods """
+
+        
+    """""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
+    *                            MAIN INTERFACE                               
+    *            Main interface to be used by every implemented agent               
+    """""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
+    @abstractmethod
+    def play(self,observations:np.array=None,policy=None,info=None) -> tuple([np.array,dict]):
+        return NotImplementedError
+
     def run_n_episodes(self, num_episodes=None, show_whether_achieved_goal=True, save_and_print_results=True):
         """Runs game to completion n times and then summarises results and saves model (if asked to)"""
         if num_episodes is None: num_episodes = self.config.get_num_episodes_to_run()
         start = time.time()
         while self.episode_number < num_episodes:
-            self.reset_game()
-            self.step()
-            if self.debug_mode == True: self.logger.info("Game ended -- State and Reward Sequence is:\n{}".format(self.pack_states_and_rewards_side_by_side()))
-            else: self.logger.info("Game ended -- Last State:\n{}".format(self.episode_states[-1]))
+            self.reset()
+            self.do_episode()
+            if self.debug_mode == True: self.logger.info("Game ended -- Observation and Reward Sequence is:\n{}".format(self.pack_observations_and_rewards_side_by_side()))
+            else: self.logger.info("Game ended -- Last observation:\n{}".format(self.episode_next_observations[-1]))
             if save_and_print_results: self.save_and_print_result()
             self.writer.flush()
         time_taken = time.time() - start
@@ -144,52 +152,91 @@ class Base_Agent(Agent):
         self.writer.close()
         return self.game_full_episode_scores, self.rolling_results, time_taken
 
-    def reset_game(self):
-        """Resets the game information so we are ready to play a new episode"""
-        self.episode_states = []
+    def do_episode(self):
+        while not self.is_episode_finished():
+            self.step()
+            if self.time_to_learn():
+                self.before_learn_block()
+                self.learn()
+                self.after_learn_block()
+            self.save_step_info()
+            self.end_step_block() 
+            self.advance_to_next_state()
+        self.end_episode()
+
+    def is_episode_finished(self):
+        return self.done
+
+    @abstractmethod
+    def step(self):
+        return NotImplementedError
+
+    def time_to_learn(self):
+        return self.done
+
+    def before_learn_block(self):
+        return
+
+    @abstractmethod
+    def learn():
+        return NotImplementedError
+
+    def after_learn_block(self):
+        return
+
+    def save_step_info(self):
+        self.episode_observations.append(self.observation)
+        self.episode_masks.append(self.mask)
+        self.episode_actions.append(self.action)
+        self.episode_rewards.append(self.reward)
+        self.episode_next_observations.append(self.next_observation)
+        self.episode_dones.append(self.done)
+        self.total_episode_score_so_far += self.reward
+        self.episode_step_number += 1
+
+    def end_step_block(self):
+        return
+
+    def advance_to_next_state(self):
+        self.observation = self.next_observation
+        self.mask = self.environment.get_mask()
+
+    def end_episode(self):
+        self.episode_number += 1
+        if self.debug_mode:
+            self.log_updated_probabilities()
+        self.logger.info("total reward: {}".format(self.total_episode_score_so_far))
+
+    def reset(self):
+        self.logger.info("Reseting game \n*\n*\n*\n*")
+        super().reset()
+        self.environment.seed(self.config.get_seed())
+        self.total_episode_score_so_far = 0
+        self.episode_step_number = 0
+        self.episode_observations = []
+        self.episode_masks = []
         self.episode_rewards = []
         self.episode_actions = []
-        self.episode_next_states = []
+        self.episode_next_observations = []
         self.episode_dones = []
         self.episode_probabilities = []
+        self.episode_action_probabilities = []
+        self.episode_action_log_probabilities = []
         self.episode_desired_goals = []
         self.episode_achieved_goals = []
         self.episode_observations = []
-        self.environment.seed(self.config.get_seed())
-        self.state = self.environment.reset()
-        self.next_state = None
-        self.action = None
-        self.reward = None
-        self.done = False
-        self.total_episode_score_so_far = 0
         if "exploration_strategy" in self.__dict__.keys(): self.exploration_strategy.reset()
-        self.logger.info("Reseting game \n*\n*\n*\n*")
+        
 
-    def step(self):
-        """Takes a step in the game. This method must be overriden by any agent"""
-        raise ValueError("Step needs to be implemented by the agent")
 
-    def conduct_action(self, action):
-        """Conducts an action in the environment"""
-        next_state, reward, done, _ = self.environment.step(action)
-        self.episode_actions.append(action)
-        self.next_state = next_state
-        self.episode_next_states.append(self.next_state)
-        self.reward = reward
-        self.episode_rewards.append(self.reward)
-        self.done = done
-        self.episode_dones.append(self.done)
-        self.total_episode_score_so_far += self.reward
-        if self.config.get_clip_rewards(): self.reward =  max(min(self.reward, 1.0), -1.0)
-        if(self.done == True):
-            self.logger.info("final_reward: {}".format(self.reward))
 
-    def get_action_mask(self):
-        if(self.action_mask_required == True):
-            return torch.tensor(self.environment.get_mask())
-        else:
-            return None
-    
+    """""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
+    *                            AUXILIARY METHODS 
+    * Methods that are often used by several agents, although not necessary in
+    every agents
+    """""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
+
+    ''' policy '''
     def take_optimisation_step(self, optimizer, network, loss, clipping_norm=None, retain_graph=False):
         """Takes an optimisation step by calculating gradients given the loss and then updating the parameters"""
         optimizer.zero_grad() #reset gradients to 0
@@ -241,30 +288,12 @@ class Base_Agent(Agent):
         for param in network.parameters():
             param.requires_grad = True
 
+    
     ''' Helpful '''
     def get_environment_title(self):
         """Extracts name of environment from it"""
         return self.environment.get_name()
 
-    def get_score_required_to_win(self):
-        """Gets average score required to win game"""
-        if self.environment_title == "FetchReach": return -5
-        if self.environment_title in ["AntMaze", "Hopper", "Walker2d","Gomoku","K_Row","Cart-Pole"]:
-            #print("Score required to win set to infinity therefore no learning rate annealing will happen")
-            return float("inf")
-        try: return self.environment.unwrapped.reward_threshold
-        except AttributeError:
-            try:
-                return self.environment.spec.reward_threshold
-            except AttributeError:
-                return self.environment.unwrapped.spec.reward_threshold
-
-    def get_trials(self):
-        """Gets the number of trials to average a score over"""
-        if self.environment_title in ["AntMaze", "FetchReach", "Hopper", "Walker2d", "CartPole","Gomoku","K_Row","Cart-Pole"]: return 100
-        try: return self.environment.unwrapped.trials
-        except AttributeError: return self.environment.spec.trials
-    
     def turn_on_any_epsilon_greedy_exploration(self):
         """Turns off all exploration with respect to the epsilon greedy exploration strategy"""
         print("Turning on epsilon greedy exploration")
@@ -275,33 +304,33 @@ class Base_Agent(Agent):
         print("Turning off epsilon greedy exploration")
         self.turn_off_exploration = True
 
-    
-    """ Information """
-    def setup_logger(self):
-        """Sets up the logger"""
-        date_time = datetime.datetime.now()
-        filename = "traininglogs/Training_" + date_time.strftime("%Y-%m-%d_%H:%M:%S") + ".log"
-        try:
-            if os.path.isfile(filename):
-                os.remove(filename)
-        except: pass
 
-        logger = logging.getLogger(__name__)
-        logger.setLevel(logging.INFO)
-        # create a file handler
-        handler = logging.FileHandler(filename)
-        handler.setLevel(logging.INFO)
-        # create a logging format 
-        formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-        handler.setFormatter(formatter)
-        # add the handlers to the logger
-        logger.addHandler(handler)
+    ''' Replay Memory Storage Methods '''
+    def sample_transitions(self):
+        """Draws a random sample of transitions from the memory buffer"""
+        transitions = self.memory.sample()
+        observation, actions, rewards, next_observation, dones = transitions
+        return observation, actions, rewards, next_observation, dones
+
+    def save_transition(self, memory=None, transition=None):
+        """Saves the recent transition to the memory buffer"""
+        if memory is None: memory = self.memory
+        if transition is None: transition = self.observation, self.action, self.reward, self.next_observation, self.done
+        memory.add_transition(*transition)
+
+    def enough_transitions_to_learn_from(self):
+        """Boolean indicated whether there are enough transitions in the memory buffer to learn from"""
+        return len(self.memory) > self.config.get_batch_size()
+
+
+    ''' Logging '''
+    def setup_logger(self):
         self.logger = logger
 
     def log_game_info(self):
         """Logs info relating to the game"""
         for ix, param in enumerate([self.environment_title, self.action_types, self.action_size, 
-                      self.input_shape, self.config.get_architecture(), self.average_score_required_to_win, self.rolling_score_window,
+                      self.input_shape, self.config.get_architecture(), self.rolling_score_window,
                       self.device]):
             self.logger.info("{} -- {}".format(ix, param))
 
@@ -313,7 +342,6 @@ class Base_Agent(Agent):
                 param_norm = param.grad.data.norm(2)
             total_norm += param_norm.item() ** 2
         total_norm = total_norm ** (1. / 2)
-
         for g in optimizer.param_groups:
             learning_rate = g['lr']
             break
@@ -343,40 +371,18 @@ class Base_Agent(Agent):
             if len(self.rolling_results) > self.rolling_score_window:
                 self.max_rolling_score_seen = self.rolling_results[-1]
 
-    def pack_states_and_rewards_side_by_side(self):
-        height = self.episode_states[0].shape[0]        
+    def pack_observations_and_rewards_side_by_side(self):
+        height = self.episode_observations[0].shape[0]        
         output = []
         for line_no in range(height):
-            for state in self.episode_states:
-                state_line = str(list(state[line_no]))
-                output.append(state_line)
-            #state_line = str(list(self.next_state[line_no]))
-            #output.append(state_line)
+            for observation in self.episode_observations:
+                observation_line = str(list(observation[line_no]))
+                output.append(observation_line)
             output.append("\n")
         for rew_no in range(len(self.episode_rewards)):
             rew_str = str(self.episode_rewards[rew_no])
             output.append(" " * (len(output[rew_no])-len(rew_str)) + rew_str)
         return ''.join(output)
-
-    def achieved_required_score_at_index(self):
-        """Returns the episode at which agent achieved goal or -1 if it never achieved it"""
-        for ix, score in enumerate(self.rolling_results):
-            if score > self.average_score_required_to_win:
-                return ix
-        return -1
-
-    def show_whether_achieved_goal(self):
-        """Prints out whether the agent achieved the environment target goal"""
-        index_achieved_goal = self.achieved_required_score_at_index()
-        print(" ")
-        if index_achieved_goal == -1: #this means agent never achieved goal
-            print("\033[91m" + "\033[1m" +
-                  "{} did not achieve required score \n".format(self.agent_name) +
-                  "\033[0m" + "\033[0m")
-        else:
-            print("\033[92m" + "\033[1m" +
-                  "{} achieved required score at episode {} \n".format(self.agent_name, index_achieved_goal) +
-                  "\033[0m" + "\033[0m")
 
     def set_random_seeds(self, random_seed):
         """Sets all possible random seeds so results can be reproduced"""
@@ -404,25 +410,7 @@ class Base_Agent(Agent):
         self.save_max_result_seen()
 
 
-    """ Replay Memory Storage Methods"""
-    def sample_transitions(self):
-        """Draws a random sample of transitions from the memory buffer"""
-        transitions = self.memory.sample()
-        states, actions, rewards, next_states, dones = transitions
-        return states, actions, rewards, next_states, dones
-
-    def save_transition(self, memory=None, transition=None):
-        """Saves the recent transition to the memory buffer"""
-        if memory is None: memory = self.memory
-        if transition is None: transition = self.state, self.action, self.reward, self.next_state, self.done
-        memory.add_transition(*transition)
-
-    def enough_transitions_to_learn_from(self):
-        """Boolean indicated whether there are enough transitions in the memory buffer to learn from"""
-        return len(self.memory) > self.config.get_batch_size()
-
-
-    """ Other """
+    ''' Other '''
     def clone(self):
         raise NotImplementedError
 

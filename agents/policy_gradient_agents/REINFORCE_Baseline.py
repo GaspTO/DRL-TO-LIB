@@ -76,7 +76,7 @@ class REINFORCE_Baseline(REINFORCE):
         super().reset_game()
         self.episode_critic_values = []
 
-    def step(self):
+    def do_episode(self):
         """Runs a step within a game including a learning step if required"""
         while not self.done:
             self.pick_and_conduct_action_and_save_log_probabilities()

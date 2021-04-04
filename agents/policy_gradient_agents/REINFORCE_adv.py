@@ -36,7 +36,7 @@ class REINFORCE_adv(REINFORCE):
         self.episode_action_probabilities1 = []
         self.episode_action_probabilities2 = []
 
-    def step(self):      
+    def do_episode(self):      
         self.reward1 = None
         self.reward2 = None
         while not self.done:

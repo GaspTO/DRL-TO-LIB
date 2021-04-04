@@ -7,14 +7,14 @@ from torch import multiprocessing
 from torch.multiprocessing import Queue
 import torch.optim  as optim
 from torch.optim import Adam
-from agents.Base_Agent import Base_Agent, Config_Base_Agent
+from agents.Learning_Agent import Learning_Agent, Config_Learning_Agent
 from utilities.Utility_Functions import create_actor_distribution, SharedAdam
 
 
 
-class Config_A3C(Config_Base_Agent):
+class Config_A3C(Config_Learning_Agent):
     def __init__(self,config=None):
-        Config_Base_Agent.__init__(self,config)
+        Config_Learning_Agent.__init__(self,config)
         if(isinstance(config,Config_A3C)):
             self.discount_rate = config.get_discount_rate()
             self.exploration_worker_difference = config.get_exploration_worker_difference()
@@ -46,7 +46,7 @@ class Config_A3C(Config_Base_Agent):
             raise ValueError("Learning Rate Not Defined")
         return self.learning_rate
         
-class A3C(Base_Agent):
+class A3C(Learning_Agent):
     """Actor critic A3C algorithm from deepmind paper https://arxiv.org/pdf/1602.01783.pdf"""
     agent_name = "A3C"
     def __init__(self, config: Config_A3C):
@@ -123,14 +123,14 @@ class A3C(Base_Agent):
 
 
 
-class Actor_Critic_Worker(torch.multiprocessing.Process,Base_Agent):
+class Actor_Critic_Worker(torch.multiprocessing.Process,Learning_Agent):
 
     """Actor critic worker that will play the game for the designated number of episodes """
     def __init__(self, worker_num, environment, shared_model, counter, optimizer_lock, shared_optimizer,
                  config, episodes_to_run, epsilon_decay_denominator, action_mask_required, action_size, action_types, results_queue,
                  local_model, gradient_updates_queue):
         torch.multiprocessing.Process.__init__(self)
-        Base_Agent.__init__(self,config)
+        Learning_Agent.__init__(self,config)
         self.environment = environment
         self.worker_num = worker_num
 
@@ -190,8 +190,8 @@ class Actor_Critic_Worker(torch.multiprocessing.Process,Base_Agent):
         
 
     def reset_game(self):
-        """ Extends the Base_Agent reset_game to include some new arrays """
-        Base_Agent.reset_game(self)
+        """ Extends the Learning_Agent reset_game to include some new arrays """
+        Learning_Agent.reset_game(self)
         self.episode_log_action_probabilities = []
         self.critic_outputs = []
 

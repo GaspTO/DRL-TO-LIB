@@ -1,8 +1,8 @@
-from environments.Simple_Playground_Env import Simple_Playground_Env
-from agents.Base_Agent import Base_Agent
+from environments.core.Custom_Simple_Playground import Custom_Simple_Playground
+from agents.Learning_Agent import Learning_Agent
 import copy
 
-class Simple_Self_Play(Simple_Playground_Env):
+class Simple_Self_Play(Custom_Simple_Playground):
 	def __init__(self,episodes_to_update,environment=None):
 		self.ep_2_upd = episodes_to_update
 		self.current_ep = 0
@@ -10,8 +10,8 @@ class Simple_Self_Play(Simple_Playground_Env):
 		super().__init__(environment)
 
 	def add_agent(self, agent):
-		if not isinstance(agent,Base_Agent):
-			raise ValueError('agent needs to be a Base_Agent')
+		if not isinstance(agent,Learning_Agent):
+			raise ValueError('agent needs to be a Learning_Agent')
 		self.original_agent = agent
 		self.update_adversary_agent()
 			

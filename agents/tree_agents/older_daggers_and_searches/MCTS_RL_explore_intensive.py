@@ -3,30 +3,33 @@ from os.path import dirname, abspath
 sys.path.append(dirname(dirname(abspath(__file__))))
 from agents.Agent import Agent
 from agents.tree_agents.MCTS_Search import MCTS_Search, MCTS_Node
+from agents.tree_agents.MCTS_RL_Search import MCTS_RL_Search, MCTS_Node
 import torch
 from math import sqrt
 import numpy as np
 import random
 
-class MCTS_RL_Search(MCTS_Search):
+class MCTS_RL_Explore_Intensive(MCTS_RL_Search):
     def __init__(self,environment,network,device,observation = None,n_iterations=None,exploration_weight = 1.0,debug = False,logger=None):
         super().__init__(environment,observation = observation,n_iterations = n_iterations,exploration_weight=exploration_weight,debug = debug,logger=logger)
         assert network is not None
         self.network = network
         self.device = device
         
+    def puct(node):
+        assert node.num_chosen_by_parent == node.num_losses + node.num_draws + node.num_wins
+        opponent_losses = node.num_losses + 0.5 * node.num_draws
+        U = self.exploration_weight * node.p * sqrt_N /(1 + node.num_chosen_by_parent)
+        Q = opponent_losses/(node.num_chosen_by_parent + 1)
+        return U + Q
+    
     def get_play_probabilities(self, n_iterations = 0, debug = False):
         if self.n_iterations != None:
             assert self.n_iterations != None
             n_iterations = self.n_iterations
         self.run_n_playouts(n_iterations)
         sqrt_N = sqrt(self.current_node.num_chosen_by_parent)
-        def puct(node):
-            assert node.num_chosen_by_parent == node.num_losses + node.num_draws + node.num_wins
-            opponent_losses = node.num_losses + 0.5 * node.num_draws
-            U = self.exploration_weight * node.p * sqrt_N /(1 + node.num_chosen_by_parent)
-            Q = opponent_losses/(node.num_chosen_by_parent + 1)
-            return U + Q
+
         action_probs = np.zeros(self.environment.get_action_size()) #the len(successors) is not always the action_size
         for n in self.root.get_successors():
             action_probs[n.parent_action] = puct(n)

@@ -149,7 +149,7 @@ class DAGGER(REINFORCE):
             prob = torch.softmax(self.policy(state,mask=mask),dim=1)
             after_action_prob = prob[0][ae]
             prob_list = ["{0}=>{1:.2f}".format(i,prob[0][i]) for i in range(len(prob[0]))]
-            text = """\r D_reward {0: .2f}, action: {1: 2d}, expert_action: {2: 2d} | expert_prev_prob:{3: .10f} expert_new_prob: {4: .10f} ||| probs: {5}"""
+            text = """\r D_reward {0: .2f}, action: {1: 2d}, expert_action: {2: 2d} | expert_prev_prob:{3: .10f} expert_new_prob: {4: .10f} ||| probs: {5}\n"""
             formatted_text = text.format(r,a,ae,torch.exp(elp).item(),after_action_prob.item(),prob_list)
             if(print_results): print(formatted_text)
             full_text.append(formatted_text )

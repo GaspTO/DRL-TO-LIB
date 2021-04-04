@@ -1,0 +1,41 @@
+THERE ARE SEVERAL DAGGERS WHICH ARE DIFFERENT EXPERIMENTS
+
+1º DAGGER_simple_follow_probs
+	
+	- simple mcts
+	- no replay
+	- cross entropy between mcts probabilities and network probabilities
+	
+	RESULTS: meh
+	
+
+2º DAGGER_simple_follow_action
+
+	- simple mcts
+	- no replay
+	- cross entropy between mcts best action and network probabilities
+	
+	RESULTS: slow
+	
+
+3º DAGGER_REPLAY_follow_action
+
+	- simple mcts
+	- replay
+	- cross entropy between mcts best action and network probabilities
+	
+	RESULTS: very good, way faster to achieve positive results
+	
+
+4º DAGGER_mcts_rl_Replay_follow_action 
+
+	- mcts with node probabilities given by network
+	- replay
+	- cross entropy between mcts best action and network probabilities
+	
+	
+5º DAGGER_GENERAL
+	
+	- has all the mcts strategies
+	- replay
+	- cross entropy between mcts best action and network probabilities

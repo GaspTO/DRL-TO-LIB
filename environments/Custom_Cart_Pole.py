@@ -1,7 +1,8 @@
 from gym.envs.classic_control.cartpole import CartPoleEnv
+from environments.core import Custom_Environment
 import numpy as np
 
-class Cart_Pole_Interface():
+class Custom_Cart_Pole(Custom_Environment):
     def __init__(self):
         self.environment = CartPoleEnv()
         self.environment.reset()
@@ -31,7 +32,7 @@ class Cart_Pole_Interface():
 
     def get_mask(self,observation=None):
         if observation is not None: raise ValueError("The Dynamic Observation environment setup isn't implemented")
-        return [1,1] #todo isn't suppose to return a mask
+        return np.array([1,1]) #todo isn't suppose to return a mask
 
     def get_current_observation(self,observation=None,human=False):
         if observation is not None: raise ValueError("The Dynamic Observation environment setup isn't implemented")
@@ -45,9 +46,6 @@ class Cart_Pole_Interface():
         if observation is not None: raise ValueError("The Dynamic Observation environment setup isn't implemented")
         return self.environment.steps_beyond_done is not None #it's None when playing
 
-    def get_game_info(self):
-        return {}
-
     def get_winner(self, observation=None):
         raise ValueError("Cart-Pole is not an adversary game")
 
@@ -57,10 +55,7 @@ class Cart_Pole_Interface():
     def get_action_size(self):
         return self.environment.action_space.n #2
     
-    def get_input_shape(self):
+    def get_observation_shape(self) -> tuple:
         return self.environment.observation_space.shape
 
     
-
-#env = Cart_Pole_Interface()
-#print("test")

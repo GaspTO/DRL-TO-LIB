@@ -9,7 +9,7 @@ import gym
 from gym import spaces
 import torch
 sys.path.append("/home/nizzel/Desktop/Tiago/Computer_Science/Tese/DRL-TO-LIB")
-from environments.environment_utils import Players, IN_GAME, TERMINAL
+from environments.core.Players import Players, IN_GAME, TERMINAL
 
 
 '''
@@ -115,9 +115,8 @@ class K_Row_State():
             return self.board_planes[0]*current_piece + self.board_planes[1]*adversary_piece
 
     def get_legal_actions(self):
-        legal_actions = []
         flat_summed_board = (self.board_planes[0] + self.board_planes[1]).flatten()
-        return list(np.where(flat_summed_board == EMPTY_PIECE)[0])
+        return np.where(flat_summed_board == EMPTY_PIECE)[0]
 
     def coord_to_action(self, x, y):
         if(self.board.shape[0]-1 < x or self.board.shape[1]-1 < y or x <0 or y<0):
@@ -260,7 +259,7 @@ class K_Row_Env(gym.Env):
     def get_action_size(self):
         return self.board_shape[0] * self.board_shape[1]
 
-    def get_input_shape(self):
+    def get_observation_shape(self) -> tuple:
         return self.k_row_state.board_planes.shape
         
 

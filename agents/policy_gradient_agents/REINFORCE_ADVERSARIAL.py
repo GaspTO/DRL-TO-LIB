@@ -13,7 +13,7 @@ class REINFORCE_ADVERSARIAL(REINFORCE):
     def __init__(self,config):
         REINFORCE.__init__(self, config)
 
-    def step(self):
+    def do_episode(self):
         while not self.done:
             self.conduct_action()
             if self.time_to_learn():

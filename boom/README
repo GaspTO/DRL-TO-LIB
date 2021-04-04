@@ -1,3 +1,0 @@
-REINFORCE_adv   - just the 3 types of agent
-REINFORCE_adv_negative - Same as before but with log(1-p) when reward is negative
-

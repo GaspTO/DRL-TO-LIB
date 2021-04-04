@@ -6,15 +6,15 @@ import random
 import torch.optim as optim
 import torch.nn.functional as F
 import numpy as np
-from agents.Base_Agent import Base_Agent, Config_Base_Agent
+from agents.Learning_Agent import Learning_Agent, Config_Learning_Agent
 from exploration_strategies.Epsilon_Greedy_Exploration import Epsilon_Greedy_Exploration
 from utilities.data_structures.Replay_Buffer import Replay_Buffer
 
 
 
-class Config_DQN(Config_Base_Agent):
+class Config_DQN(Config_Learning_Agent):
     def __init__(self,config=None):
-        Config_Base_Agent.__init__(self,config)
+        Config_Learning_Agent.__init__(self,config)
         if(isinstance(config,Config_DQN)):
             self.buffer_size = config.get_buffer_size()
             self.discount_rate = config.get_discount_rate()
@@ -51,11 +51,11 @@ class Config_DQN(Config_Base_Agent):
  
 
 
-class DQN(Base_Agent):
+class DQN(Learning_Agent):
     """A deep Q learning agent"""
     agent_name = "DQN"
     def __init__(self, config):
-        Base_Agent.__init__(self, config)
+        Learning_Agent.__init__(self, config)
         self.memory = Replay_Buffer(self.config.get_buffer_size(), self.config.get_batch_size(), self.config.get_seed(), self.device)
         self.q_network_local = self.config.architecture()
         self.q_network_optimizer = optim.Adam(self.q_network_local.parameters(),lr=self.config.learning_rate)
