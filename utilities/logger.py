@@ -7,8 +7,7 @@ Logger
 '''
 def setup_logger():
         """Sets up the logger"""
-        date_time = datetime.datetime.now()
-        filename = "logs/traininglogs/Training_" + date_time.strftime("%Y-%m-%d_%H:%M:%S") + ".log"
+        filename = "logs/traininglogs/Training_" + datetime.datetime.now().strftime("%Y-%B-%d-%Hh-%Mm-%Ss") + ".log"
         try:
             if os.path.isfile(filename):
                 os.remove(filename)

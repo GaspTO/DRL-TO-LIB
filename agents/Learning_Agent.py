@@ -99,9 +99,8 @@ class Learning_Agent(Agent):
     def __init__(self, config: Config_Learning_Agent):
         self.setup_logger()
         self.debug_mode = config.get_debug_mode()
-        #date_time = datetime.datetime.now()
-        #datestr = date_time.strftime("%Y-%m-%d_%H_%M_%S")
-        self.writer = SummaryWriter("logs/runs/")
+        datestr = datetime.datetime.now().strftime("%Y-%B-%d-%Hh-%Mm-%Ss")
+        self.writer = SummaryWriter("logs/runs/"+datestr)
         self.config = config
         self.set_random_seeds(config.get_seed())
         self.environment = config.get_environment()
@@ -149,7 +148,6 @@ class Learning_Agent(Agent):
             if save_and_print_results: self.save_and_print_result()
             self.writer.flush()
         time_taken = time.time() - start
-        if show_whether_achieved_goal: self.show_whether_achieved_goal()
         if self.config.get_save_model(): self.locally_save_policy()
         self.writer.close()
         return self.game_full_episode_scores, self.rolling_results, time_taken

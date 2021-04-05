@@ -69,8 +69,10 @@ class DAGGER(Learning_Agent):
         input_mask = torch.from_numpy(self.mask).unsqueeze(0).to(self.device)
         action_values_logits = self.policy(input_state,input_mask,False)
         action_values_softmax =  torch.softmax(action_values_logits,dim=1)
-        action_distribution = Categorical(action_values_softmax) # this creates a distribution to sample from
-        action = action_distribution.sample()
+        #! what is the purpose of sampling in DAGGER?
+        #action_distribution = Categorical(action_values_softmax) # this creates a distribution to sample from
+        #action = action_distribution.sample()
+        action = action_values_softmax.argmax()
         return action.item(), {"action_probability": action_values_softmax[0][action],
             "action_log_probability":torch.log_softmax(action_values_logits,dim=1)[0][action],
             "logits": action_values_logits}
@@ -164,7 +166,7 @@ class DAGGER(Learning_Agent):
             prob = torch.softmax(self.policy(state,mask=mask,apply_softmax=False),dim=1)
             after_action_prob = prob[0][ae]
             prob_list = ["{0}=>{1:.2f}".format(i,prob[0][i]) for i in range(len(prob[0]))]
-            text = """\r D_reward {0: .2f}, action: {1: 2d}, expert_action: {2: 2d} | expert_prev_prob:{3: .10f} expert_new_prob: {4: .10f} ||| probs: {5}\n"""
+            text = """D_reward {0: .2f}, action: {1: 2d}, expert_action: {2: 2d} | expert_prev_prob:{3: .10f} expert_new_prob: {4: .10f} ||| probs: {5}\n"""
             formatted_text = text.format(r,a,ae,torch.exp(elp).item(),after_action_prob.item(),prob_list)
             if(print_results): print(formatted_text)
             full_text.append(formatted_text )
