@@ -55,7 +55,7 @@ class DAGGER(Learning_Agent):
         * pick action
     """
     def step(self):
-        self.expert_action = self.mcts(self.observation,100)
+        self.expert_action = self.mcts_simple_rl(self.observation,100)
         self.action, info = self.pick_action()
         self.action_log_probability = info["action_log_probability"]
         self.expert_action_probability = torch.softmax(info["logits"],dim=1)[0][torch.tensor([self.expert_action])]
@@ -99,11 +99,12 @@ class DAGGER(Learning_Agent):
             self.take_optimisation_step(self.optimizer,policy,policy_loss,self.config.get_gradient_clipping_norm())
         self.dataset = self.dataset[-self.memory_size:]
         self.logger.info("time:{0:.10f}".format(time()-start))
-        self.log_updated_probabilities()
+        
 
     """
     Override:
         * save_step_info
+        * end_episode
         * reset
     """
     def save_step_info(self):
@@ -113,11 +114,17 @@ class DAGGER(Learning_Agent):
         self.episode_expert_action_log_probabilities.append(self.expert_action_log_probability)        
         self.dataset.append(Data(self.observation,self.expert_action,self.mask))
 
+
+    def end_episode(self):
+        super().end_episode()
+        self.log_updated_probabilities()
+
     def reset(self):
         super().reset()
         self.episode_expert_actions = []
         self.episode_expert_action_probabilities = []
         self.episode_expert_action_log_probabilities = [] 
+        #! CAREFUL
         self.environment.play_first = self.environment.play_first == False
         
 

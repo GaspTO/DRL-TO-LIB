@@ -99,7 +99,9 @@ class Learning_Agent(Agent):
     def __init__(self, config: Config_Learning_Agent):
         self.setup_logger()
         self.debug_mode = config.get_debug_mode()
-        self.writer = SummaryWriter("logs/runs")
+        #date_time = datetime.datetime.now()
+        #datestr = date_time.strftime("%Y-%m-%d_%H_%M_%S")
+        self.writer = SummaryWriter("logs/runs/")
         self.config = config
         self.set_random_seeds(config.get_seed())
         self.environment = config.get_environment()

@@ -3,7 +3,7 @@ from os.path import dirname, abspath
 sys.path.append(dirname(dirname(abspath(__file__))))
 sys.path.append("/home/nizzel/Desktop/Tiago/Computer_Science/Tese/DRL-TO-LIB")
 
-from agents.tree_agents.MCTS_Node import MCTS_Node
+from agents.tree_agents.Search_Node import Search_Node
 from agents.Agent import Agent
 from environments.Custom_K_Row import Custom_K_Row
 from environments.core.Players import Players, Player, IN_GAME, TERMINAL, TIE_PLAYER_NUMBER
@@ -20,11 +20,27 @@ class MCTS_Search():
     def __init__(self,environment,observation = None,exploration_weight = 1.0, debug = False):
         if observation is None: observation = environment.get_current_observation() 
         self.environment = environment
-        self.root =  MCTS_Node(environment,observation)
+        self.root =  Search_Node(environment,observation,initializer_fn=MCTS_Search.node_initializer)
         self.root.belongs_to_tree = True
         self.current_node = self.root
         self.exploration_weight = exploration_weight
         self.debug = debug
+
+    '''
+    Handle Nodes
+        * every time a node is created pass this in the constructor so it knows how to initialize some parameters
+    '''
+    def node_initializer(node):
+        assert hasattr(node,'num_wins') == False
+        node.num_wins = 0
+        assert hasattr(node,'num_losses') == False
+        node.num_losses = 0
+        assert hasattr(node,'num_draws') == False
+        node.num_draws = 0
+        assert hasattr(node,'num_chosen_by_parent') == False
+        node.num_chosen_by_parent = 0
+        assert hasattr(node,'belongs_to_tree') == False
+        node.belongs_to_tree = False
 
 
     '''

@@ -3,8 +3,11 @@ import copy
 from environments.core.Players import Players, Player, IN_GAME, TERMINAL
 
 
-class MCTS_Node():
-    def __init__(self,environment_interface,observation,parent_node=None,parent_action=None,terminal=None,legal_actions=None):
+class Search_Node():
+    '''
+    - initializer_fn: it's a function that's suppose to initialize a bunch of parameters that are relevant
+    '''
+    def __init__(self,environment_interface,observation,initializer_fn=None,parent_node=None,parent_action=None,terminal=None,legal_actions=None):
         self.environment = environment_interface
         self.observation = observation
         self.parent_node = parent_node
@@ -14,25 +17,21 @@ class MCTS_Node():
         self.terminal = terminal if terminal != None else self.environment.is_terminal(observation=observation)
         self.all_legal_actions = list(legal_actions) if legal_actions is not None else list(self.environment.get_legal_actions(observation=observation))
         self.non_expanded_legal_actions = copy.deepcopy(self.all_legal_actions)
+        ''' to initialize relevant parameters '''
+        self.initializer_fn = initializer_fn 
+        if initializer_fn is not None: initializer_fn(self)
         
-        '''
-        Auxiliary
-            #todo there's no reason to have these here, MCTS_Node should be a normal node
-        '''
-        self.num_wins = 0
-        self.num_losses = 0
-        self.num_draws = 0
-        self.num_chosen_by_parent = 0
-        self.belongs_to_tree = False
         
-    """
+        
+    """ 
     Find Methods
         - They create a node with a new state, but don't append it to the tree.
     """
     def find_successor_after_action(self,action):
         new_observation, _ , done , new_game_info = self.environment.step(action,observation=self.observation)
         legal_actions = self.environment.get_legal_actions(observation=new_observation)
-        return MCTS_Node(self.environment,new_observation,parent_node = self,parent_action=action,terminal = done,legal_actions=legal_actions)
+        return Search_Node(self.environment,new_observation,initializer_fn=self.initializer_fn,\
+            parent_node = self,parent_action=action,terminal = done,legal_actions=legal_actions)
 
     def find_random_unexpanded_successor(self):
         random_idx = random.randint(0,len(self.non_expanded_legal_actions)-1)

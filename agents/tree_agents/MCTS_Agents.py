@@ -1,3 +1,5 @@
+import heapq
+
 import sys
 from os.path import dirname, abspath
 sys.path.append(dirname(dirname(abspath(__file__))))
@@ -95,6 +97,44 @@ class MCTS_Exploratory_RL_Agent(MCTS_Simple_RL_Agent):
                 return U + Q
             max_node =  max(mcts.current_node.get_successors(), key=SAVE_uct)
             return max_node
+
+        self.set_sel_fn(_selection_tactic)
+
+
+
+'''
+
+'''
+class MCTS_Astar_Agent(MCTS_Simple_RL_Agent):
+    
+    def __init__(self,environment,n_iterations,network,device,exploration_weight = 1.0):
+        super().__init__(environment,n_iterations,network,device,exploration_weight=exploration_weight)
+        self.agent_heap = []
+        def _selection_tactic(mcts):
+            sqrt_N = sqrt(mcts.current_node.num_chosen_by_parent)
+            
+            max_node =  max(mcts.current_node.get_successors(), key=puct)
+            return max_node
+
+        def _expansion_tactic(mcts):
+                def puct(node):
+                    assert node.num_chosen_by_parent == node.num_losses + node.num_draws + node.num_wins
+                    opponent_losses = node.num_losses + 0.5 * node.num_draws
+                    U = mcts.exploration_weight * node.p * sqrt_N /(1 + node.num_chosen_by_parent)
+                    Q = opponent_losses/(node.num_chosen_by_parent + 1)
+                    return U + Q    
+                nodes = mcts.current_node.expand_rest_successors()
+                current_board = mcts.current_node.get_current_observation()
+                x = torch.from_numpy(current_board).float().unsqueeze(0).to(self.device)
+                with torch.no_grad():
+                    p = self.network(x,torch.tensor(mcts.current_node.get_mask()),False)
+                    p = torch.softmax(p,dim=1)
+                for node in nodes:
+                    node.p = p[0][node.parent_action]
+                    node.belongs_to_tree = True
+                    heapq.heappush(self.agent_heap,(node))
+                random_idx = random.randint(0,len(nodes)-1)
+                return nodes[random_idx]
 
         self.set_sel_fn(_selection_tactic)
 
