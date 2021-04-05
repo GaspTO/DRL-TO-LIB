@@ -55,7 +55,7 @@ class DAGGER(Learning_Agent):
         * pick action
     """
     def step(self):
-        self.expert_action = self.mcts_simple_rl(self.observation,100)
+        self.expert_action = self.mcts_simple_rl(self.observation,100,5.0)
         self.action, info = self.pick_action()
         self.action_log_probability = info["action_log_probability"]
         self.expert_action_probability = torch.softmax(info["logits"],dim=1)[0][torch.tensor([self.expert_action])]
@@ -134,20 +134,27 @@ class DAGGER(Learning_Agent):
     *                            EXPERT AGENTS                              
     *            Main interface to be used by every implemented agent               
     """""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
-    def mcts(self,observation,n):
+    def mcts(self,observation,n,exploration_weight):
         #todo some things in here need config
-        search = MCTS_Agents.MCTS_Agent(self.environment.environment,n,exploration_weight=5.0)
+        search = MCTS_Agents.MCTS_Search(self.environment.environment,n,exploration_weight=exploration_weight)
         action = search.play(observation)
         return action
 
-    def mcts_simple_rl(self,observation,n):
-        #todo some things in here need config
-        search = MCTS_Agents.MCTS_Simple_RL_Agent(self.environment.environment,n,self.policy,self.device,exploration_weight=5.0)
+    def mcts_simple_rl(self,observation,n,exploration_weight):
+        #todo some things in here need config««
+        search = MCTS_Agents.MCTS_Simple_RL_Agent(self.environment.environment,n,self.policy,self.device,exploration_weight=exploration_weight)
         action = search.play(observation)
         return action
 
-    def mcts_exploratory_rl(self,observation,n):
-        search = MCTS_Agents.MCTS_Exploratory_RL_Agent(self.environment.environment,n,self.policy,self.device,exploration_weight=5.0)
+    def mcts_explotation_rl(self,observation,n,exploration_weight):
+        raise ValueError("broken")
+        search = MCTS_Agents.MCTS_Explotation_RL_Agent(self.environment.environment,n,self.policy,self.device,exploration_weight=exploration_weight)
+        action = search.play(observation)
+        return action
+
+    def mcts_IDAstar_rl(self,observation,n):
+        raise ValueError("broken")
+        search = MCTS_Agents.MCTS_IDAstar_Agent(self.environment.environment,n,self.policy,self.device,exploration_weight=5.0)
         action = search.play(observation)
         return action
 
@@ -170,7 +177,7 @@ class DAGGER(Learning_Agent):
             formatted_text = text.format(r,a,ae,torch.exp(elp).item(),after_action_prob.item(),prob_list)
             if(print_results): print(formatted_text)
             full_text.append(formatted_text )
-        self.logger.info("Updated probabilities and Loss After update:" + ''.join(full_text))
+        self.logger.info("Updated probabilities and Loss After update:\n" + ''.join(full_text))
     
 
 
