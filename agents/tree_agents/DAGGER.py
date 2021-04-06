@@ -55,7 +55,7 @@ class DAGGER(Learning_Agent):
         * pick action
     """
     def step(self):
-        self.expert_action = self.mcts_exploitation_rl(self.observation,100,1.0)
+        self.expert_action = self.mcts_exploitation_rl(self.observation,25,1.0)
         self.action, info = self.pick_action()
         #! CAREFUL: using expert action + mcts exploitation
         self.action = self.expert_action
