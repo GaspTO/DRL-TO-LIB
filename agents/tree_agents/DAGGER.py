@@ -55,8 +55,10 @@ class DAGGER(Learning_Agent):
         * pick action
     """
     def step(self):
-        self.expert_action = self.mcts_explotation_rl(self.observation,100,1.0)
+        self.expert_action = self.mcts_exploitation_rl(self.observation,100,1.0)
         self.action, info = self.pick_action()
+        #! CAREFUL: using expert action + mcts exploitation
+        self.action = self.expert_action
         self.action_log_probability = info["action_log_probability"]
         self.expert_action_probability = torch.softmax(info["logits"],dim=1)[0][torch.tensor([self.expert_action])]
         self.expert_action_log_probability = torch.log_softmax(info["logits"],dim=1)[0][torch.tensor([self.expert_action])]
@@ -145,8 +147,8 @@ class DAGGER(Learning_Agent):
         action = search.play(observation)
         return action
 
-    def mcts_explotation_rl(self,observation,n,exploration_weight):
-        search = MCTS_Agents.MCTS_Explotation_RL_Agent(self.environment.environment,n,self.policy,self.device,exploration_weight=exploration_weight)
+    def mcts_exploitation_rl(self,observation,n,exploration_weight):
+        search = MCTS_Agents.MCTS_Exploitation_RL_Agent(self.environment.environment,n,self.policy,self.device,exploration_weight=exploration_weight)
         action = search.play(observation)
         return action
 

@@ -54,7 +54,7 @@ class MCTS_Simple_RL_Agent(MCTS_Search):
     Like MCTS_Simple_RL_Agent but
     - selection tactic described in 'Combining Q-Learning and Search with Amortized Value Estimates'
 '''
-class MCTS_Explotation_RL_Agent(MCTS_Simple_RL_Agent):
+class MCTS_Exploitation_RL_Agent(MCTS_Simple_RL_Agent):
     
     def __init__(self,environment,n_iterations,network,device,exploration_weight = 1.0,debug=False):
         super().__init__(environment,n_iterations,network,device,exploration_weight=exploration_weight,debug=debug)
