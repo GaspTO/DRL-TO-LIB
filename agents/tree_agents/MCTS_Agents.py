@@ -11,34 +11,6 @@ from math import sqrt, log
 from agents.Agent import Agent
 from agents.tree_agents.MCTS_Search import MCTS_Search
 
-class MCTS_Agent(Agent):
-    '''
-    Base class for agents based on MCTS.
-    It runs a normal MCTS
-    '''
-    def __init__(self,environment,n_iterations,exploration_weight=1.0,debug=False):
-        super().__init__(environment)
-        self.n_iterations = n_iterations
-        self.exploration_weight = exploration_weight
-        self.debug = debug
-        self.sel_fn = None
-        self.exp_fn = None
-        self.sim_fn = None
-        self.bkp_fn = None
-        self.score_fn = None
-
-    def play(self,observation=None):
-        if observation is None: observation = self.environment.get_current_observation()
-        search = MCTS_Search(self.environment, observation = observation, exploration_weight = self.exploration_weight,debug=self.debug)
-        search.run_n_playouts(self.n_iterations, sel_fn=self.sel_fn, exp_fn=self.exp_fn, sim_fn=self.sim_fn, bkp_fn=self.bkp_fn)
-        probs = search.get_action_probabilities(score_node_fn=self.score_fn)
-        return probs.argmax()
-
-    def set_sel_fn(self,sel_fn): self.sel_fn = sel_fn
-    def set_exp_fn(self,exp_fn): self.exp_fn = exp_fn
-    def set_sim_fn(self,sim_fn): self.sim_fn = sim_fn
-    def set_bkp_fn(self,bkp_fn): self.bkp_fn = bkp_fn
-    def set_score_fn(self,score_fn): self.score_fn = score_fn
 
 
 '''
@@ -92,7 +64,7 @@ class MCTS_Explotation_RL_Agent(MCTS_Simple_RL_Agent):
         def SAVE_uct(node):
             assert node.num_chosen_by_parent == node.num_losses + node.num_draws + node.num_wins
             opponent_losses = node.num_losses + 0.5 * node.num_draws
-            U = self.exploration_weight * sqrt(log_N_parent/node.num_chosen_by_parent)
+            U = self.exploration_weight * sqrt(log_N_parent/(node.num_chosen_by_parent+1))
             Q = (opponent_losses+node.p)/(node.num_chosen_by_parent + 1)
             return U + Q
         max_node =  max(self.current_node.get_successors(), key=SAVE_uct)
@@ -106,7 +78,9 @@ class MCTS_Explotation_RL_Agent(MCTS_Simple_RL_Agent):
     Like MCTS_Simple_RL_Agent
     + This algorithm expands the best successors opened not in a greedy way, but in an A* way. 
     In other words, it chooses the best not locally, but globally. It has the problem of not differentiating between
-    Ally and Adversary.
+    Ally and Adversary. 
+    To be fair this is kinda of a useless algorithm. It will expand nodes, backtrack but the backtrackting updates won't do anything
+    #! REMOVE THIS ALGORITHM
 '''
 class MCTS_Astar_Agent(MCTS_Simple_RL_Agent):
     def __init__(self,environment,n_iterations,network,device,exploration_weight = 1.0,debug=False):
@@ -155,6 +129,11 @@ class MCTS_IDAstar_Agent(MCTS_Simple_RL_Agent):
         super().__init__(environment,n_iterations,network,device,exploration_weight=exploration_weight,debug=debug)
         self.agent_heap = []
 
+    def _selection_phase(self):
+        while self.current_node.is_completely_expanded() and not self.current_node.is_terminal():
+            self.current_node = self.selection_criteria()
+            if self.debug: print("Sel:\n" + str(self.current_node.render()))
+
     def _selection_tactic(self):
         sqrt_N = sqrt(self.current_node.num_chosen_by_parent)
         def puct(node):
@@ -163,8 +142,9 @@ class MCTS_IDAstar_Agent(MCTS_Simple_RL_Agent):
             U = self.exploration_weight * node.p * sqrt_N /(1 + node.num_chosen_by_parent)
             Q = opponent_losses/(node.num_chosen_by_parent + 1)
             return U + Q
-        heapq.heappush(h,(puct(self.current_node),self.current_node))
-        max_node =  max(self.agent_heap, key=puct)
+        for n in self.current_node.get_successors():
+            heapq.heappush(self.agent_heap,(-1*puct(n),n))
+        max_node =  heapq.heappop()
         return max_node
 
     def _expansion_tactic(self):

@@ -24,11 +24,6 @@ class MCTS_Search(Agent):
         self.n_iterations = n_iterations
         self.exploration_weight = exploration_weight
         self.debug = debug
-        self.sel_fn = None
-        self.exp_fn = None
-        self.sim_fn = None
-        self.bkp_fn = None
-        self.score_fn = None
 
     '''
     Handle Nodes
@@ -54,26 +49,20 @@ class MCTS_Search(Agent):
         self.root =  Search_Node(self.environment,observation,initializer_fn=self.node_initializer)
         self.root.belongs_to_tree = True
         self.current_node = self.root
-        self.run_n_playouts(self.n_iterations, sel_fn=self.sel_fn, exp_fn=self.exp_fn, sim_fn=self.sim_fn, bkp_fn=self.bkp_fn)
-        probs = self.get_action_probabilities(score_node_fn=self.score_fn)
+        self.run_n_playouts(self.n_iterations)
+        probs = self.get_action_probabilities()
         return probs.argmax()
 
-    def set_sel_fn(self,sel_fn): self.sel_fn = sel_fn
-    def set_exp_fn(self,exp_fn): self.exp_fn = exp_fn
-    def set_sim_fn(self,sim_fn): self.sim_fn = sim_fn
-    def set_bkp_fn(self,bkp_fn): self.bkp_fn = bkp_fn
-    def set_score_fn(self,score_fn): self.score_fn = score_fn
 
     '''
     Return node probabilities
         * return probabilitie vector for all actions of the environment (not just the legal actions)
     '''
-    def get_action_probabilities(self,score_node_fn=None) -> np.ndarray:
-        if score_node_fn is None: score_node_fn = self._score_action
+    def get_action_probabilities(self) -> np.ndarray:
         #the length of successors is not always the action_size 'cause invalid actions don't become successors
         action_probs = np.zeros(self.environment.get_action_size()) 
         for n in self.root.get_successors():
-            action_probs[n.parent_action] = score_node_fn(n)
+            action_probs[n.parent_action] = self._score_tactic(n)
         # if a vector is full of zeros 
         if(action_probs.sum() == 0.):
             for n in self.root.get_successors():
@@ -82,27 +71,26 @@ class MCTS_Search(Agent):
             action_probs = action_probs/action_probs.sum()
         return action_probs
 
-    def _score_action(self,node):
+    def _score_tactic(self,node):
         if node.num_chosen_by_parent == 0:
             return 0.  # avoid unseen moves
         return (node.num_losses + 0.5*node.num_draws) / node.num_chosen_by_parent
 
-    def run_n_playouts(self,n, sel_fn = None, exp_fn=None, sim_fn=None, bkp_fn=None):
+    def run_n_playouts(self,n):
         for _ in range(n):
-            self._selection_phase(sel_fn)
-            self._expansion_phase(exp_fn)
-            self._simulation_phase(sim_fn)
-            self._backpropagation_phase(bkp_fn)
+            self._selection_phase()
+            self._expansion_phase()
+            self._simulation_phase()
+            self._backpropagation_phase()
             if self.debug: self._debug_node(self.root)
 
     '''
     Selection Phase
         * _selection_criteria is default for normal MCTS. 
     '''
-    def _selection_phase(self,selection_criteria = None):
-        if selection_criteria is None: selection_criteria2 = self._selection_tactic
+    def _selection_phase(self):
         while self.current_node.is_completely_expanded() and not self.current_node.is_terminal():
-            self.current_node = selection_criteria2()
+            self.current_node = self._selection_tactic()
             if self.debug: print("Sel:\n" + str(self.current_node.render()))
 
     def _selection_tactic(self):
@@ -118,10 +106,9 @@ class MCTS_Search(Agent):
     Expansion Phase
         * _expansion_criteria is default
     '''
-    def _expansion_phase(self,expansion_criteria = None):
-        if expansion_criteria is None: expansion_criteria = self._expansion_tactic
+    def _expansion_phase(self):
         if not self.current_node.is_terminal():
-            self.current_node = expansion_criteria()
+            self.current_node = self._expansion_tactic()
             if self.debug: print("Ex:\n" + str(self.current_node.render()))
 
     def _expansion_tactic(self):
@@ -133,10 +120,9 @@ class MCTS_Search(Agent):
     Simulation Phase
         * _fast_generation_policy is default
     '''
-    def _simulation_phase(self, fast_gen_policy = None):
-        if fast_gen_policy is None: fast_gen_policy = self._fast_generation_tactic
+    def _simulation_phase(self):
         while not self.current_node.is_terminal():
-            self.current_node = fast_gen_policy()
+            self.current_node = self._fast_generation_tactic()
             if self.debug: print("Sim:\n" + str(self.current_node.render()))
 
     def _fast_generation_tactic(self):
@@ -148,8 +134,7 @@ class MCTS_Search(Agent):
     Backpropagation Phase
         * _backpropagate_update_nodes is default
     '''
-    def _backpropagation_phase(self, backprop_update_node = None):
-        if backprop_update_node is None: backprop_update_node = self._backpropagate_current_node_tactic
+    def _backpropagation_phase(self):
         self.last_node = self.current_node
         self.winner = self.current_node.get_winner()
         if self.debug == True:
@@ -158,9 +143,9 @@ class MCTS_Search(Agent):
             if self.winner.get_number() == 2: print("TWO")
 
         while not self.current_node.is_root():
-            backprop_update_node()
+            self._backpropagate_current_node_tactic()
             self.current_node = self.current_node.get_parent_node()
-        backprop_update_node()
+        self._backpropagate_current_node_tactic()
 
     def _backpropagate_current_node_tactic(self):
         if self.current_node.belongs_to_tree == False:

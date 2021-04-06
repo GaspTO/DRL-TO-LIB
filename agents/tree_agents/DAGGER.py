@@ -39,7 +39,7 @@ class DAGGER(Learning_Agent):
         self.mask_dataset = []
         self.memory_size = 20
         self.size_of_batch = 6
-
+        self.debug = False 
 
     """""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
     *                            MAIN INTERFACE                               
@@ -55,7 +55,7 @@ class DAGGER(Learning_Agent):
         * pick action
     """
     def step(self):
-        self.expert_action = self.mcts_simple_rl(self.observation,100,5.0)
+        self.expert_action = self.mcts_explotation_rl(self.observation,100,1.0)
         self.action, info = self.pick_action()
         self.action_log_probability = info["action_log_probability"]
         self.expert_action_probability = torch.softmax(info["logits"],dim=1)[0][torch.tensor([self.expert_action])]
@@ -116,10 +116,9 @@ class DAGGER(Learning_Agent):
         self.episode_expert_action_log_probabilities.append(self.expert_action_log_probability)        
         self.dataset.append(Data(self.observation,self.expert_action,self.mask))
 
-
     def end_episode(self):
         super().end_episode()
-        self.log_updated_probabilities()
+        self.log_updated_probabilities(print_results=self.debug)
 
     def reset(self):
         super().reset()
@@ -147,7 +146,6 @@ class DAGGER(Learning_Agent):
         return action
 
     def mcts_explotation_rl(self,observation,n,exploration_weight):
-        raise ValueError("broken")
         search = MCTS_Agents.MCTS_Explotation_RL_Agent(self.environment.environment,n,self.policy,self.device,exploration_weight=exploration_weight)
         action = search.play(observation)
         return action
