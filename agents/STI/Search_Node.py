@@ -23,9 +23,10 @@ class Search_Node():
         self.non_expanded_legal_actions = copy.deepcopy(self.all_legal_actions)
         ''' to initialize relevant parameters '''
         self.parent_reward = parent_reward
-        self.W = 0 #summation of rewards
-        self.N = 0 #number of visits
-        self.delta = 0 #value to be propagated
+        self.num_losses = 0
+        self.num_draws = 0
+        self.num_wins = 0
+        self.num_chosen_by_parent = 0 #number of visits
         self.initializer_fn = initializer_fn 
         #if initializer_fn is not None: initializer_fn(self)
         

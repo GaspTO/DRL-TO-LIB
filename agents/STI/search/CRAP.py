@@ -18,24 +18,6 @@ import time
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-        
-
-
-        
-
-
-
 class Tree_Search_Iteration:
     def __init__(self,environment):
         self.environment = environment
@@ -80,15 +62,7 @@ class Tree_Search_Iteration:
 
             
             
-        
-'''
-    vl = TREEPOLICY(v0)
-    if vl.terminal():
-        vl.get_real_value()
-    else:
-        vl.expand()
-    vl.backtrack()
-'''
+
 
 
     
