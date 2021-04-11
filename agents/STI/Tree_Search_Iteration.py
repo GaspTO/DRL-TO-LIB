@@ -10,7 +10,9 @@ from typing import AbstractSet
 from math import sqrt,log
 from agents.STI.Search_Node import Search_Node
 from agents.STI.Tree_Policy import Tree_Policy, Greedy_DFS, Adversarial_Greedy_Best_First_Search
-from agents.STI.Expansion_Stategy import Expansion_Strategy, One_Successor_Rollout
+from agents.STI.Expansion_Strategy import Expansion_Strategy, One_Successor_Rollout
+
+
 from environments.Custom_K_Row import Custom_K_Row
 from environments.core.Players import Players, Player, IN_GAME, TERMINAL, TIE_PLAYER_NUMBER
 import time
@@ -20,62 +22,34 @@ import numpy as np
 
 
 class Tree_Search_Iteration(Agent):
-    def __init__(self,environment,playout_iterations,search_expansion_iterations,debug=False):
+    def __init__(self,environment,tree_policy,tree_expansion, playout_iterations,search_expansion_iterations,debug=False):
         self.environment = environment
+        self.tree_policy_tactic = tree_policy
+        self.expand_tactic = tree_expansion
         self.playout_iterations = playout_iterations
         self.search_expansion_iterations = search_expansion_iterations
         self.debug = debug
         
-
-    def set_tree_policy_tactic(self,tree_policy_tactic):
-        self.tree_policy_tactic = tree_policy_tactic
-
-    def set_expansion_tactic(self,expansion_tactic):
-        self.expand_tactic = expansion_tactic
-
     def reset(self):
-        self.current_node = self.root
-        self.tree_policy_tactic.reset()
+        self.tree_policy_tactic.reset(self.root)
         self.expand_tactic.reset()
 
-    def playout(self,k=1):
-        self.reset()
-        for i in range(k):
-            self.tree_policy_tactic.forward()
-            if self.current_node.is_terminal():
-                winner = self.current_node.get_winner()
-            else:
-                winner = self.expand_tactic.expand()
-            self.backtrack(winner)
-            if self.debug: print("summarize:" + str(self.root.W/self.root.N))
+    def run_n_playouts(self,n=1):
+        for i in range(n):
+            self.reset()
+            node = self.tree_policy_tactic.forward()
+            self.expand_tactic.update_tree(node)
+            assert self.root.num_chosen_by_parent == i + 1
 
-    def backtrack(self,winner):
-        def update_statistic(current_node,winner):
-            current_node.num_chosen_by_parent += 1
-            if TIE_PLAYER_NUMBER == winner.get_number():
-                current_node.num_draws += 1
-            elif current_node.get_current_player().get_number() == winner.get_number():
-                current_node.num_wins += 1
-            else:
-                current_node.num_losses += 1
-
-        while not self.current_node.is_root():
-            update_statistic(self.current_node,winner)
-            self.current_node = self.current_node.get_parent_node()
-        assert self.current_node.is_root()
-        update_statistic(self.current_node,winner)
-        
 
     """
     Agent Interface
     """
     def play(self,observation=None):
-        if observation is None:
-            observation = self.environment.get_current_observation()
+        if observation is None: observation = self.environment.get_current_observation()
         self.root =  Search_Node(self.environment,observation,initializer_fn=None)
         self.root.belongs_to_tree = True
-        for _ in range(self.playout_iterations):
-            self.playout(k=self.search_expansion_iterations)
+        self.run_n_playouts(n=self.playout_iterations)
         return self._get_best_action()
 
     def _get_best_action(self):
@@ -96,7 +70,7 @@ class Tree_Search_Iteration(Agent):
 
     def _score_tactic(self,node):
         if node.num_chosen_by_parent == 0:
-            return 0.  # avoid unseen moves
+            return 0.  # avoid unseen moves 
         return (node.num_losses + 0.5*node.num_draws) / node.num_chosen_by_parent
 
         
@@ -109,24 +83,26 @@ class Tree_Search_Iteration(Agent):
 
 
 ''' MAIN '''
+
 env = Custom_K_Row(board_shape=3, target_length=3)
-agent = Tree_Search_Iteration(env,playout_iterations=100,search_expansion_iterations=1)
+env.step(2)
+env.step(1)
+env.step(8)
+env.step(7)
+
 
 #* tree policy 
-agent.set_tree_policy_tactic(Greedy_DFS(agent))
+tree_policy = Greedy_DFS()
 #agent.set_tree_policy_tactic(Greedy_Best_First_Search(agent))
 #agent.set_tree_policy_tactic(Adversarial_Greedy_Best_First_Search(agent))
 #* expand policy
+tree_expansion = One_Successor_Rollout()
+
+
+agent = Tree_Search_Iteration(env,playout_iterations=100,tree_policy=tree_policy,tree_expansion=tree_expansion,search_expansion_iterations=1)
 start = time.time()
-agent.set_expansion_tactic(One_Successor_Rollout(agent))
 a = agent.play()
 print("time.time=" + str(start-time.time()))
 print("play:")
 print(a)
-'''
-start = time.time()
-for i in range(10000000000):
-    agent.playout(k=100)
-    print("time.time=" + str(start-time.time()))
-print("END")
-''' 
+

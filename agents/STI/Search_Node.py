@@ -23,6 +23,8 @@ class Search_Node():
         self.non_expanded_legal_actions = copy.deepcopy(self.all_legal_actions)
         ''' to initialize relevant parameters '''
         self.parent_reward = parent_reward
+        self.p = 0.
+        self.loss_value = 0.
         self.num_losses = 0
         self.num_draws = 0
         self.num_wins = 0

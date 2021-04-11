@@ -11,8 +11,10 @@ import torch
 import numpy as np
 import math
 from utilities.data_structures.Replay_Buffer import Replay_Buffer
+''' '''
+from agents.STI.Search_Evaluation_Function import UCT, PUCT
 from agents.STI.Tree_Policy import Tree_Policy, Greedy_DFS, Adversarial_Greedy_Best_First_Search
-from agents.STI.Expansion_Stategy import Expansion_Strategy, One_Successor_Rollout
+from agents.STI.Expansion_Strategy import Expansion_Strategy, One_Successor_Rollout, Network_One_Successor_Rollout
 
 
 class Config_DAGGER(Config_Learning_Agent):
@@ -59,10 +61,11 @@ class NEW_DAGGER(Learning_Agent):
     """
     def step(self):
         self.start = time()
-        self.expert_action = self.mcts(self.observation,100,1.0)
+        #self.expert_action = self.mcts(self.observation,100,1.0)
+        self.expert_action = self.mcts_simple_rl(self.observation,100,1.0)
         self.action, info = self.pick_action()
         #! CAREFUL: using expert action + mcts exploitation
-        #self.action = self.expert_action
+        self.action = self.expert_action
         self.action_log_probability = info["action_log_probability"]
         self.expert_action_probability = torch.softmax(info["logits"],dim=1)[0][torch.tensor([self.expert_action])]
         self.expert_action_log_probability = torch.log_softmax(info["logits"],dim=1)[0][torch.tensor([self.expert_action])]
@@ -145,13 +148,13 @@ class NEW_DAGGER(Learning_Agent):
         search = MCTS_Agents.MCTS_Search(self.environment.environment,n,exploration_weight=exploration_weight)
         action = search.play(observation)
         return action
-    '''
+    
     def mcts_simple_rl(self,observation,n,exploration_weight):
         #todo some things in here need config««
         search = MCTS_Agents.MCTS_Simple_RL_Agent(self.environment.environment,n,self.policy,self.device,exploration_weight=exploration_weight)
         action = search.play(observation)
         return action
-
+    '''
     def mcts_exploitation_rl(self,observation,n,exploration_weight):
         search = MCTS_Agents.MCTS_Exploitation_RL_Agent(self.environment.environment,n,self.policy,self.device,exploration_weight=exploration_weight)
         action = search.play(observation)
@@ -165,15 +168,21 @@ class NEW_DAGGER(Learning_Agent):
 
     def mcts(self,observation,n,exploration_weight):
         env = self.environment.environment
-        agent = Tree_Search_Iteration(env,playout_iterations=n,search_expansion_iterations=1,debug=False)
+        #* eval functions
+        #eval_fn = UCT()
+        eval_fn = PUCT()
+
         #* tree policy 
-        agent.set_tree_policy_tactic(Greedy_DFS(agent))
-        #agent.set_tree_policy_tactic(Greedy_Best_First_Search(agent))
-        #agent.set_tree_policy_tactic(Adversarial_Greedy_Best_First_Search(agent))
+        tree_policy =  Greedy_DFS(evaluation_fn=eval_fn)
+        #tree_policy = Adversarial_Greedy_Best_First_Search(evaluation_fn=eval_fn)
         
         #* expand policy
-        agent.set_expansion_tactic(One_Successor_Rollout(agent))
+        #tree_expansion = One_Successor_Rollout()
+        tree_expansion = Network_One_Successor_Rollout(self.policy,self.device)
+
+        agent = Tree_Search_Iteration(env,playout_iterations=100,tree_policy=tree_policy,tree_expansion=tree_expansion,search_expansion_iterations=1)
         action = agent.play(observation=observation)
+        #action_rl = self.mcts_simple_rl(observation,100,1.0)
         return action
                 
 

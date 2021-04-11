@@ -1,0 +1,10 @@
+STI stands for search tree iteration
+The goal of this folder is to create an abstract algorithm like mcts
+but in which you can easily change the different strategies, mainly
+the search strategy.
+
+So, instead the typical greedy dfs done by mcts in each iteration, you might have
+something like A*
+
+I put a NEW_DAGGER here, cause I don't want to disturb the TREE_Agents folder
+since it's stable
