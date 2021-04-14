@@ -34,11 +34,22 @@ POLICY BASED
 from agents.policy_gradient_agents.REINFORCE import REINFORCE, Config_Reinforce
 from agents.policy_gradient_agents.REINFORCE_BASELINE import REINFORCE_BASELINE, Config_Reinforce_Baseline
 from agents.actor_critic_agents.A3C import A3C, Config_A3C
+
+
 '''
 TREE BASED
 '''
-from agents.tree_agents.MCTS_Agents import MCTS_Search
+from agents.tree_agents.MCTS_Agents import MCTS_Search, MCTS_Simple_RL_Agent
 from agents.tree_agents.DAGGER import DAGGER
+'''
+STI
+'''
+#from agents.STI.Tree_Search_Iteration import Tree_Search_Iteration
+from agents.STI.NEW_DAGGER import NEW_DAGGER
+'''
+ASTAR
+'''
+#from agents.Simple_Astar.ASTAR_DAGGER import ASTAR_DAGGER
 
 
 
@@ -174,8 +185,12 @@ config.exploration_worker_difference = 2.0
 
 
 config_reinforce.environment = Custom_Simple_Playground(config.environment,play_first=True)
-agent = DAGGER(config_reinforce)
-config_reinforce.environment.add_agent(MCTS_Search(config_reinforce.environment.environment,n_iterations=100))
+#agent = DAGGER(config_reinforce)
+agent = NEW_DAGGER(config_reinforce)
+#agent = ASTAR_DAGGER(config_reinforce)
+
+#config_reinforce.environment.add_agent(MCTS_Simple_RL_Agent(config_reinforce.environment.environment,n_iterations=100,network=agent.policy,device=agent.device))
+config_reinforce.environment.add_agent(MCTS_Search(config_reinforce.environment.environment,n_iterations=25))
 game_scores, rolling_scores, time_taken = agent.run_n_episodes(num_episodes=100000)
 #todo these algorithms don't put new tensors on gpu if asked
 #todo need to creat configs
@@ -184,6 +199,7 @@ game_scores, rolling_scores, time_taken = agent.run_n_episodes(num_episodes=1000
 #todo logger should be global
 #todo refactor networks: softmax and mask should be explicitly passed or not passed, to avoid mistakes like forgetting we're suppose to use it
 #todo have a more formal way of managing networks
+#todo DAGGER like alpazero should keep the tree for the next play
 
 
 

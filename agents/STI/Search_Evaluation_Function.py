@@ -20,7 +20,7 @@ class UCT(Search_Evaluation_Function):
         log_N_vertex = log(node.get_parent_node().num_chosen_by_parent)
         assert node.num_chosen_by_parent == node.num_losses + node.num_draws + node.num_wins
         opponent_losses = node.num_losses + 0.5 * node.num_draws
-        return opponent_losses / node.num_chosen_by_parent + self.exploration_weight * sqrt(log_N_vertex / node.num_chosen_by_parent)
+        return opponent_losses / node.num_chosen_by_parent + self.exploration_weight * sqrt(log_N_vertex / (node.num_chosen_by_parent))
 
 
 class PUCT(Search_Evaluation_Function):

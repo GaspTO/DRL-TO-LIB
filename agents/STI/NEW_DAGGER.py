@@ -13,7 +13,7 @@ import math
 from utilities.data_structures.Replay_Buffer import Replay_Buffer
 ''' '''
 from agents.STI.Search_Evaluation_Function import UCT, PUCT
-from agents.STI.Tree_Policy import Tree_Policy, Greedy_DFS, Adversarial_Greedy_Best_First_Search
+from agents.STI.Tree_Policy import Tree_Policy, Greedy_DFS, Adversarial_Greedy_Best_First_Search, Local_Greedy_DFS_With_Global_Restart
 from agents.STI.Expansion_Strategy import Expansion_Strategy, One_Successor_Rollout, Network_One_Successor_Rollout
 
 
@@ -61,11 +61,11 @@ class NEW_DAGGER(Learning_Agent):
     """
     def step(self):
         self.start = time()
-        #self.expert_action = self.mcts(self.observation,100,1.0)
-        self.expert_action = self.mcts_simple_rl(self.observation,100,1.0)
+        self.expert_action = self.try_expert(self.observation,25,5,1.0)
+        #self.expert_action = self.mcts_simple_rl(self.observation,25,1.0)
         self.action, info = self.pick_action()
         #! CAREFUL: using expert action + mcts exploitation
-        self.action = self.expert_action
+        #self.action = self.expert_action
         self.action_log_probability = info["action_log_probability"]
         self.expert_action_probability = torch.softmax(info["logits"],dim=1)[0][torch.tensor([self.expert_action])]
         self.expert_action_log_probability = torch.log_softmax(info["logits"],dim=1)[0][torch.tensor([self.expert_action])]
@@ -166,21 +166,22 @@ class NEW_DAGGER(Learning_Agent):
         return action
     '''
 
-    def mcts(self,observation,n,exploration_weight):
+    def try_expert(self,observation,n_rounds,k,exploration_weight):
         env = self.environment.environment
         #* eval functions
         #eval_fn = UCT()
         eval_fn = PUCT()
 
         #* tree policy 
-        tree_policy =  Greedy_DFS(evaluation_fn=eval_fn)
+        #tree_policy =  Greedy_DFS(evaluation_fn=eval_fn)
         #tree_policy = Adversarial_Greedy_Best_First_Search(evaluation_fn=eval_fn)
+        tree_policy = Local_Greedy_DFS_With_Global_Restart(evaluation_fn=eval_fn)
         
         #* expand policy
         #tree_expansion = One_Successor_Rollout()
         tree_expansion = Network_One_Successor_Rollout(self.policy,self.device)
 
-        agent = Tree_Search_Iteration(env,playout_iterations=100,tree_policy=tree_policy,tree_expansion=tree_expansion,search_expansion_iterations=1)
+        agent = Tree_Search_Iteration(env,playout_iterations=n_rounds,tree_policy=tree_policy,tree_expansion=tree_expansion,search_expansion_iterations=k)
         action = agent.play(observation=observation)
         #action_rl = self.mcts_simple_rl(observation,100,1.0)
         return action
