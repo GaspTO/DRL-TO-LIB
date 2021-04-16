@@ -81,13 +81,13 @@ class Policy_Re2(nn.Module):
         super().__init__()
         self.net = nn.Sequential(
             nn.Flatten(start_dim=1),
-            nn.Linear(18,300),
+            nn.Linear(50,300),
             nn.ReLU(),
             nn.Linear(300,300),
             nn.ReLU(),
             nn.Linear(300,300),
             nn.ReLU(),
-            nn.Linear(300,9))
+            nn.Linear(300,25))
 
     def forward(self, x, mask, apply_softmax):
         self.x1 = x
@@ -101,7 +101,7 @@ class Policy_Re2(nn.Module):
 """ Config """
 config = Config()
 config.debug_mode = False
-config.environment = Custom_K_Row(board_shape=3, target_length=3)
+config.environment = Custom_K_Row(board_shape=5, target_length=4)
 #config.environment = Simple_Playground_Env(K_Row_Interface(board_shape=3, target_length=3))
 #config.environment = Simple_Self_Play(episodes_to_update=100,environment=config.enviroig.environment
 config.file_to_save_data_results = "results/data_and_graphs/Cart_Pole_Results_Data.pkl"
