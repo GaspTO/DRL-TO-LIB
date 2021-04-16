@@ -66,6 +66,15 @@ class Network_One_Successor_Rollout(One_Successor_Rollout):
         self.network = network
         self.device = device
 
+    def update_tree(self,node):
+        if not node.is_terminal():
+            succ_node = self._expand_new(node)
+            winner_player = self._simulate_from_random_node(succ_node)
+            self._backpropagate(succ_node, winner_player)
+        else:
+            winner_player = node.get_winner()
+            self._backpropagate(node,winner_player)
+
     def _expand_new(self,node):
         ''' expand all and adds node.p '''
         nodes = node.expand_rest_successors()
@@ -74,9 +83,18 @@ class Network_One_Successor_Rollout(One_Successor_Rollout):
         with torch.no_grad():
             p = self.network(x,torch.tensor(node.get_mask()),False)
             p = torch.softmax(p,dim=1)
-        for node in nodes:
-            node.p = p[0][node.parent_action]
-            node.belongs_to_tree = True
+        for node_child in nodes:
+            #! if terminal don't put node.p but the real -1 V 0 V 1 value 
+            #!if node_child.is_terminal():
+            #!    if node_child.get_winner() == node_child.get_current_player():
+            #!       node_child.p = 1
+            #!    elif node_child.get_winner() == node_child.get_current_player():
+            #!        node_child.p = -1
+            #!    else:
+            #!       node_child.p = 0
+            #!else:
+                node_child.p = p[0][node_child.parent_action].item()
+                node_child.belongs_to_tree = True
         random_idx = random.randint(0,len(nodes)-1)
         return nodes[random_idx]
 

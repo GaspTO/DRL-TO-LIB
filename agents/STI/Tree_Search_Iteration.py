@@ -23,6 +23,7 @@ import numpy as np
 
 class Tree_Search_Iteration(Agent):
     def __init__(self,environment,tree_policy,tree_expansion, playout_iterations,search_expansion_iterations,debug=False):
+        #! call super?
         self.environment = environment
         self.tree_policy_tactic = tree_policy
         self.expand_tactic = tree_expansion

@@ -15,6 +15,7 @@ from utilities.data_structures.Replay_Buffer import Replay_Buffer
 from agents.STI.Search_Evaluation_Function import UCT, PUCT
 from agents.STI.Tree_Policy import Tree_Policy, Greedy_DFS, Adversarial_Greedy_Best_First_Search, Local_Greedy_DFS_With_Global_Restart
 from agents.STI.Expansion_Strategy import Expansion_Strategy, One_Successor_Rollout, Network_One_Successor_Rollout
+from agents.STI.Astar_minimax import Astar_minimax
 
 
 class Config_DAGGER(Config_Learning_Agent):
@@ -62,7 +63,8 @@ class NEW_DAGGER(Learning_Agent):
     def step(self):
         self.start = time()
         self.expert_action = self.try_expert(self.observation,25,5,1.0)
-        #self.expert_action = self.mcts_simple_rl(self.observation,25,1.0)
+        #self.expert_action = self.mcts_simple_rl(self.observation,100,1.0)
+        #self.expert_action = self.astar_minimax(self.observation)
         self.action, info = self.pick_action()
         #! CAREFUL: using expert action + mcts exploitation
         #self.action = self.expert_action
@@ -150,7 +152,7 @@ class NEW_DAGGER(Learning_Agent):
         return action
     
     def mcts_simple_rl(self,observation,n,exploration_weight):
-        #todo some things in here need config««
+        #todo some things in here need config
         search = MCTS_Agents.MCTS_Simple_RL_Agent(self.environment.environment,n,self.policy,self.device,exploration_weight=exploration_weight)
         action = search.play(observation)
         return action
@@ -174,8 +176,8 @@ class NEW_DAGGER(Learning_Agent):
 
         #* tree policy 
         #tree_policy =  Greedy_DFS(evaluation_fn=eval_fn)
-        #tree_policy = Adversarial_Greedy_Best_First_Search(evaluation_fn=eval_fn)
-        tree_policy = Local_Greedy_DFS_With_Global_Restart(evaluation_fn=eval_fn)
+        tree_policy = Adversarial_Greedy_Best_First_Search(evaluation_fn=eval_fn)
+        #tree_policy = Local_Greedy_DFS_With_Global_Restart(evaluation_fn=eval_fn)
         
         #* expand policy
         #tree_expansion = One_Successor_Rollout()
@@ -186,6 +188,14 @@ class NEW_DAGGER(Learning_Agent):
         #action_rl = self.mcts_simple_rl(observation,100,1.0)
         return action
                 
+    
+    def astar_minimax(self,observation):
+        env = self.environment.environment
+        eval_fn = PUCT()
+        agent = Astar_minimax(env,self.policy,self.device,eval_fn)
+        act = agent.play(observation=observation)
+        return act
+    
 
 
 

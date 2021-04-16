@@ -53,6 +53,10 @@ class Adversarial_Greedy_Best_First_Search(Tree_Policy):
             self.eval_fn = evaluation_fn
     
     def forward(self):
+        if len(self.greedy_frontier) == 0:
+            self.node = self.root
+        else:    
+            self.node = heapq.heappop(self.greedy_frontier)[-1]
         while True:
             if not self.node.is_completely_expanded() or self.node.is_terminal():
                 return self.node
@@ -76,7 +80,6 @@ class Adversarial_Greedy_Best_First_Search(Tree_Policy):
 
     def reset(self,root):
         self.root = root
-        self.node = self.root
         self.i = 0
         self.greedy_frontier = []
 
@@ -93,7 +96,7 @@ class Local_Greedy_DFS_With_Global_Restart(Tree_Policy):
             self.eval_fn = evaluation_fn
     
     def forward(self):
-        if len(self.greedy_frontier) ==0:
+        if len(self.greedy_frontier) == 0:
             self.node = self.root
         else:    
             self.node = heapq.heappop(self.greedy_frontier)[-1]

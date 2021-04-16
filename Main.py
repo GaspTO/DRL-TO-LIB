@@ -46,6 +46,7 @@ STI
 '''
 #from agents.STI.Tree_Search_Iteration import Tree_Search_Iteration
 from agents.STI.NEW_DAGGER import NEW_DAGGER
+from agents.STI.NEW_REINFORCE import NEW_REINFORCE
 '''
 ASTAR
 '''
@@ -187,10 +188,11 @@ config.exploration_worker_difference = 2.0
 config_reinforce.environment = Custom_Simple_Playground(config.environment,play_first=True)
 #agent = DAGGER(config_reinforce)
 agent = NEW_DAGGER(config_reinforce)
+#agent = NEW_REINFORCE(config_reinforce) #! I was fixing this
 #agent = ASTAR_DAGGER(config_reinforce)
 
 #config_reinforce.environment.add_agent(MCTS_Simple_RL_Agent(config_reinforce.environment.environment,n_iterations=100,network=agent.policy,device=agent.device))
-config_reinforce.environment.add_agent(MCTS_Search(config_reinforce.environment.environment,n_iterations=25))
+config_reinforce.environment.add_agent(MCTS_Search(config_reinforce.environment.environment,n_iterations=100))
 game_scores, rolling_scores, time_taken = agent.run_n_episodes(num_episodes=100000)
 #todo these algorithms don't put new tensors on gpu if asked
 #todo need to creat configs
