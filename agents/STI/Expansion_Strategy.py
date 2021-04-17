@@ -84,15 +84,15 @@ class Network_One_Successor_Rollout(One_Successor_Rollout):
             p = self.network(x,torch.tensor(node.get_mask()),False)
             p = torch.softmax(p,dim=1)
         for node_child in nodes:
-            #! if terminal don't put node.p but the real -1 V 0 V 1 value 
-            #!if node_child.is_terminal():
-            #!    if node_child.get_winner() == node_child.get_current_player():
-            #!       node_child.p = 1
-            #!    elif node_child.get_winner() == node_child.get_current_player():
-            #!        node_child.p = -1
-            #!    else:
-            #!       node_child.p = 0
-            #!else:
+            #* real values
+            if node_child.is_terminal():
+                if node_child.get_winner() == node_child.get_current_player():
+                   node_child.p = 1
+                elif node_child.get_winner() == node_child.get_current_player():
+                    node_child.p = -1
+                else:
+                   node_child.p = 0
+            else:
                 node_child.p = p[0][node_child.parent_action].item()
                 node_child.belongs_to_tree = True
         random_idx = random.randint(0,len(nodes)-1)
