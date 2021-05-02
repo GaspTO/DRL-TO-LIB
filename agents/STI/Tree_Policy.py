@@ -5,7 +5,7 @@ from agents.STI.Search_Evaluation_Function import UCT, PUCT
  
 
 
-""" Tree Policies  """
+""" Tree Policies - are the search policies in Search Iteration """
 class Tree_Policy:
     """
     needs to use self.frontier
@@ -20,7 +20,9 @@ class Tree_Policy:
         pass
 
 
-
+'''
+GREEDY_DFS - for classic Monte Carlo Tree Search 
+'''
 class Greedy_DFS(Tree_Policy):
     def __init__(self,evaluation_fn=None):
         super().__init__()
@@ -29,8 +31,11 @@ class Greedy_DFS(Tree_Policy):
         else:
             self.eval_fn = evaluation_fn
 
-    def forward(self):
+    def forward(self,debug=False):
+        if debug: print("sel:",end="(")
         while True:
+            if(self.node.get_parent_action() is None and debug): print("root",end=" ")
+            elif debug: print(str(self.node.get_parent_action()),end=" ")
             if not self.node.is_completely_expanded() or self.node.is_terminal():
                 return self.node
             self.node = max(self.node.get_successors(),key=self.eval_fn.evaluate)
@@ -85,7 +90,8 @@ class Adversarial_Greedy_Best_First_Search(Tree_Policy):
 
 
 '''
-
+Every forward method call chooses the best node seen in heap and then
+follows a greedy dfs until leaf
 '''
 class Local_Greedy_DFS_With_Global_Restart(Tree_Policy):
     def __init__(self,evaluation_fn=None):

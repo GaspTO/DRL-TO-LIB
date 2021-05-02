@@ -35,13 +35,18 @@ class Tree_Search_Iteration(Agent):
         self.tree_policy_tactic.reset(self.root)
         self.expand_tactic.reset()
 
-    def run_n_playouts(self,n=1,k=1):
+    def run_n_playouts(self,n=1,k=1,debug=False):
         for i in range(n):
             self.reset()
             for s in range(k):
                 node = self.tree_policy_tactic.forward()
                 self.expand_tactic.update_tree(node)
-                assert self.root.num_chosen_by_parent == i * k + s + 1
+                if debug: print()
+                assert self.root.N == i * k + s + 1
+            if i % 9 == 0 and i!=0 and debug:
+                for n in self.root.get_successors():
+                    print("i="+str(i) + "a:"+str(n.get_parent_action()) + " W:" + str(n.W) + "      N: " + str(n.N) + "     W/N:"+str(n.W/n.N)  + "     UCT:" + str(self.tree_policy_tactic.eval_fn.evaluate(n)) + "     Q:" + str(self.tree_policy_tactic.eval_fn.Q(n)) + "     U:" + str(self.tree_policy_tactic.eval_fn.U(n)))
+                print("///////////////////////////////////")
 
 
     """
@@ -49,7 +54,8 @@ class Tree_Search_Iteration(Agent):
     """
     def play(self,observation=None):
         if observation is None: observation = self.environment.get_current_observation()
-        self.root =  Search_Node(self.environment,observation,initializer_fn=None)
+        self.root =  Search_Node(self.environment,observation)
+        self.expand_tactic.initialize_node_attributes(self.root)
         self.root.belongs_to_tree = True
         self.run_n_playouts(n=self.playout_iterations,k=self.search_expansion_iterations)
         return self._get_best_action()
@@ -71,9 +77,9 @@ class Tree_Search_Iteration(Agent):
         return action_probs
 
     def _score_tactic(self,node):
-        if node.num_chosen_by_parent == 0:
+        if node.N == 0:
             return 0.  # avoid unseen moves 
-        return (node.num_losses + 0.5*node.num_draws) / node.num_chosen_by_parent
+        return (-node.W) / node.N
 
         
             
@@ -85,12 +91,12 @@ class Tree_Search_Iteration(Agent):
 
 
 ''' MAIN '''
-"""
+'''
 env = Custom_K_Row(board_shape=3, target_length=3)
-env.step(2)
-env.step(1)
-env.step(8)
-env.step(7)
+#env.step(2)
+#env.step(1)
+#env.step(8)
+#nv.step(7)
 
 
 #* tree policy 
@@ -101,10 +107,10 @@ tree_policy = Greedy_DFS()
 tree_expansion = One_Successor_Rollout()
 
 
-agent = Tree_Search_Iteration(env,playout_iterations=100,tree_policy=tree_policy,tree_expansion=tree_expansion,search_expansion_iterations=1)
+agent = Tree_Search_Iteration(env,playout_iterations=1000000,tree_policy=tree_policy,tree_expansion=tree_expansion,search_expansion_iterations=1)
 start = time.time()
 a = agent.play()
 print("time.time=" + str(start-time.time()))
 print("play:")
 print(a)
-"""
+'''

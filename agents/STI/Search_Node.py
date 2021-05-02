@@ -1,6 +1,9 @@
 import random
 import copy
+
+from numpy import string_
 from environments.core.Players import Players, Player, IN_GAME, TERMINAL
+from collections import OrderedDict
 
 
 '''
@@ -8,30 +11,18 @@ This node is made specifically to search in environments using trees (one parent
 '''
 #! change name to Environment_Node
 class Search_Node():
-    '''
-    - initializer_fn: it's a function that's suppose to initialize a bunch of parameters that are relevant
-    '''
-    def __init__(self,environment_interface,observation,parent_reward=0,initializer_fn=None,parent_node=None,parent_action=None,terminal=None,legal_actions=None):
+    def __init__(self,environment_interface,observation,parent_node=None,parent_action=None,terminal=None,legal_actions=None):
         self.environment = environment_interface
         self.observation = observation
         self.parent_node = parent_node
         self.parent_action = parent_action
-        self.successors = []
         self.depth = 0 if parent_node is None else self.parent_node.depth + 1
         self.terminal = terminal if terminal != None else self.environment.is_terminal(observation=observation)
+        self.successors = dict()
         self.all_legal_actions = list(legal_actions) if legal_actions is not None else list(self.environment.get_legal_actions(observation=observation))
         self.non_expanded_legal_actions = copy.deepcopy(self.all_legal_actions)
-        ''' to initialize relevant parameters '''
-        self.parent_reward = parent_reward
-        self.p = 0.
-        self.loss_value = 0.
-        self.num_losses = 0
-        self.num_draws = 0
-        self.num_wins = 0
-        self.num_chosen_by_parent = 0 #number of visits
-        self.initializer_fn = initializer_fn 
-        #if initializer_fn is not None: initializer_fn(self)
-        
+
+
     """ 
     Find Methods
         - They create a node with a new state, but don't append it to the tree.
@@ -39,8 +30,7 @@ class Search_Node():
     def find_successor_after_action(self,action):
         new_observation, reward , done , new_game_info = self.environment.step(action,observation=self.observation)
         legal_actions = self.environment.get_legal_actions(observation=new_observation)
-        return Search_Node(self.environment,new_observation,parent_reward=reward,initializer_fn=self.initializer_fn,\
-            parent_node = self,parent_action=action,terminal = done,legal_actions=legal_actions)
+        return Search_Node(self.environment,new_observation, parent_node = self,parent_action=action,terminal = done,legal_actions=legal_actions)
 
     def find_random_unexpanded_successor(self):
         random_idx = random.randint(0,len(self.non_expanded_legal_actions)-1)
@@ -59,9 +49,9 @@ class Search_Node():
         also removes those actions from the set of unexpanded actions
     ''' 
     #! change name to add_successors
-    def append_successors_to_node(self,successors: list):
+    def add_successors(self,successors: list):
         for node in successors:
-            self.successors.append(node)
+            self.successors[node.get_parent_action()] = node
             self.get_non_expanded_legal_actions().remove(node.get_parent_action())
 
     '''
@@ -71,12 +61,12 @@ class Search_Node():
     '''
     def expand_random_successor(self):
         node = self.find_random_unexpanded_successor()
-        self.append_successors_to_node([node])
+        self.add_successors([node])
         return node
 
     def expand_rest_successors(self):
         nodes = self.find_rest_unexpanded_successors()
-        self.append_successors_to_node(nodes)
+        self.add_successors(nodes)
         return nodes
 
     '''
@@ -96,8 +86,12 @@ class Search_Node():
         return self.depth
 
     def get_successors(self):
-        self.successors.sort(key=lambda n:n.get_parent_action())
-        return self.successors
+        list_successors = list(self.successors.values())
+        list_successors.sort(key=lambda node:node.get_parent_action()) #in the tuple , the first index corresponds to the key
+        return list_successors
+
+    def get_successor_node(self,action:int):
+        return self.successors[action]
 
     def get_parent_node(self):
         return self.parent_node
@@ -136,7 +130,7 @@ class Search_Node():
         else:
             raise ValueError("Impossible to get if is terminal state")
 
-    def get_winner(self):
+    def get_winner_player(self):
         if not self.is_terminal():
             raise ValueError("Node is not Terminal")
         return self.environment.get_winner(observation=self.observation)
