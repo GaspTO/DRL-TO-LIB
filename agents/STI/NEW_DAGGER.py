@@ -62,23 +62,24 @@ class NEW_DAGGER(Learning_Agent):
     """
     def step(self):
         self.start = time()
-        self.expert_action = self.try_expert(self.observation,25,5,1.0)
-        #self.expert_action = self.mcts_simple_rl(self.observation,100,1.0)
+        #self.expert_action = self.try_expert(self.observation,25,5,1.0)
+        self.expert_action = self.mcts_simple_rl(self.observation,100,1.0)
+        self.stri_action = self.mcts_original(self.observation,100,1.0)
         #self.expert_action = self.astar_minimax(self.observation)
         self.action, info = self.pick_action()
-        #! CAREFUL: using expert action + mcts exploitation
-        #self.action = self.expert_action
+
         self.action_log_probability = info["action_log_probability"]
         self.expert_action_probability = torch.softmax(info["logits"],dim=1)[0][torch.tensor([self.expert_action])]
         self.expert_action_log_probability = torch.log_softmax(info["logits"],dim=1)[0][torch.tensor([self.expert_action])]
-        self.next_observation, self.reward, self.done, _ = self.environment.step(self.action)
+        #! EXPERT
+        self.next_observation, self.reward, self.done, _ = self.environment.step(self.expert_action)
 
     def pick_action(self,current_observation=None) -> tuple([int,dict]):
         if current_observation is None: current_observation = self.observation
         else: raise ValueError("Right now pick action can only use internal state")
         input_state = torch.from_numpy(current_observation).float().unsqueeze(0).to(self.device)
         input_mask = torch.from_numpy(self.mask).unsqueeze(0).to(self.device)
-        action_values_logits = self.policy(input_state,input_mask,False)
+        action_values_logits = self.policy.load_state(input_state).get_policy_values(False,input_mask)
         action_values_softmax =  torch.softmax(action_values_logits,dim=1)
         #! what is the purpose of sampling in DAGGER?
         #action_distribution = Categorical(action_values_softmax) # this creates a distribution to sample from
@@ -104,7 +105,7 @@ class NEW_DAGGER(Learning_Agent):
             masks = torch.tensor(np.stack([self.dataset[i][2] for i in range(index-size_of_batch,index)]))
             assert len(observations) == len(actions) and len(masks) == len(actions) and len(actions) == size_of_batch
             input_data = torch.from_numpy(observations).float().to("cuda" if torch.cuda.is_available() else "cpu")
-            output = self.policy(input_data,mask=masks,apply_softmax=False)
+            output = self.policy.load_state(input_data).get_policy_values(apply_softmax=False,mask=masks)
             output_log = torch.log_softmax(output,dim=1)
             assert type(actions[0]) == np.int64
             loss = [-1 * output_log[idx][actions[idx]] for idx in range(size_of_batch)]
@@ -133,6 +134,10 @@ class NEW_DAGGER(Learning_Agent):
 
     def reset(self):
         super().reset()
+        #! DEBUG
+        self.episode_stri = []
+        self.episode_stri_mcts_normal= []
+
         self.episode_expert_actions = []
         self.episode_expert_action_probabilities = []
         self.episode_expert_action_log_probabilities = [] 
@@ -149,12 +154,14 @@ class NEW_DAGGER(Learning_Agent):
         #todo some things in here need config
         search = MCTS_Agents.MCTS_Search(self.environment.environment,n,exploration_weight=exploration_weight)
         action = search.play(observation)
+        self.episode_stri_mcts_normal.append(search.stri)
         return action
     
     def mcts_simple_rl(self,observation,n,exploration_weight):
         #todo some things in here need config
         search = MCTS_Agents.MCTS_Simple_RL_Agent(self.environment.environment,n,self.policy,self.device,exploration_weight=exploration_weight)
         action = search.play(observation)
+        self.episode_stri.append(search.stri)
         return action
     '''
     def mcts_exploitation_rl(self,observation,n,exploration_weight):
@@ -186,6 +193,7 @@ class NEW_DAGGER(Learning_Agent):
         agent = Tree_Search_Iteration(env,playout_iterations=n_rounds,tree_policy=tree_policy,tree_expansion=tree_expansion,search_expansion_iterations=k)
         action = agent.play(observation=observation)
         #action_rl = self.mcts_simple_rl(observation,100,1.0)
+        raise ValueError("don't take max action but sample")
         return action
                 
     
@@ -205,14 +213,16 @@ class NEW_DAGGER(Learning_Agent):
     def log_updated_probabilities(self,print_results=False):
         r = self.reward
         full_text = []
-        for s,a,ae,elp in zip(self.episode_observations,self.episode_actions,self.episode_expert_actions,self.episode_expert_action_log_probabilities):
+        for s,a,ae,elp,st,st_n in zip(self.episode_observations,self.episode_actions,self.episode_expert_actions,self.episode_expert_action_log_probabilities,self.episode_stri,self.episode_stri_mcts_normal):
             with torch.no_grad():
                 state = torch.from_numpy(s).float().unsqueeze(0).to(self.device)
                 mask = torch.tensor(self.environment.environment.get_mask(observation=s))
-            prob = torch.softmax(self.policy(state,mask=mask,apply_softmax=False),dim=1)
+            prob = self.policy.load_state(state).get_policy_values(mask=mask,apply_softmax=True)
             after_action_prob = prob[0][ae]
             prob_list = ["{0}=>{1:.2f}".format(i,prob[0][i]) for i in range(len(prob[0]))]
-            text = """D_reward {0: .2f}, action: {1: 2d}, expert_action: {2: 2d} | expert_prev_prob:{3: .10f} expert_new_prob: {4: .10f} ||| probs: {5}\n"""
+            text = """D_reward {0: .2f}, agent_action: {1: 2d}, expert_action: {2: 2d} | expert_prev_prob:{3: .10f} expert_new_prob: {4: .10f} ||| probs: {5}\n"""
+            text = text + st + "\n"
+            text = text + "++++++++++++++++++++++++++++++++++++++++++++\n" + st_n + "\n"
             formatted_text = text.format(r,a,ae,torch.exp(elp).item(),after_action_prob.item(),prob_list)
             if(print_results): print(formatted_text)
             full_text.append(formatted_text )

@@ -1,5 +1,7 @@
 import sys
 from os.path import dirname, abspath
+
+from torch._C import Value
 sys.path.append(dirname(dirname(abspath(__file__))))
 sys.path.append("/home/nizzel/Desktop/Tiago/Computer_Science/Tese/DRL-TO-LIB")
 
@@ -61,7 +63,8 @@ class Tree_Search_Iteration(Agent):
         return self._get_best_action()
 
     def _get_best_action(self):
-        return self._get_action_probabilities().argmax()
+        return self._get_action_probabilities()
+
 
     def _get_action_probabilities(self):
         #the length of successors is not always the action_size 'cause invalid actions don't become successors
@@ -74,12 +77,33 @@ class Tree_Search_Iteration(Agent):
                 action_probs[n.parent_action] = 1/len(self.root.get_successors()) 
         else:
             action_probs = action_probs/action_probs.sum()
+            if len(np.where(action_probs < 0)[0]) != 0:
+                raise ValueError("Negative vector in TSI")
         return action_probs
 
+    '''
+    previous
     def _score_tactic(self,node):
         if node.N == 0:
             return 0.  # avoid unseen moves 
         return (-node.W) / node.N
+    '''
+
+    
+    #!ALPHAZERO temperature = 1
+    def _score_tactic(self,node):
+        if node.N == 0:
+            return 0.  # avoid unseen moves 
+        return (node.N) / node.get_parent_node().N
+
+
+    '''
+    avg reward
+    def _score_tactic(self,node):
+        if node.N == 0:
+            return 0.  # avoid unseen moves 
+        return (-node.W) / node.N
+    '''
 
         
             
