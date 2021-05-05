@@ -2,6 +2,7 @@ import sys
 from os.path import dirname, abspath
 sys.path.append(dirname(dirname(abspath(__file__))))
 sys.path.append("/home/nizzel/Desktop/Tiago/Computer_Science/Tese/DRL-TO-LIB")
+from utilities.logger import logger
 
 from agents.tree_agents.Search_Node import Search_Node
 from agents.Agent import Agent
@@ -51,6 +52,21 @@ class MCTS_Search(Agent):
         self.current_node = self.root
         self.run_n_playouts(self.n_iterations)
         probs = self.get_action_probabilities()
+
+
+         #! DEBUG
+        current = self.current_node
+        sqrt_N = sqrt(current.num_chosen_by_parent)
+        self.stri = "NORMAL MCTS values \n:"
+        l = current.get_successors()
+        l.sort(key=lambda x: x.get_parent_action())
+        for node in current.get_successors():
+            #print("parent:"+str(node.get_parent_action()) + "    p:"+ str(node.p)+ "   (loss,draws,games):" + "(" + str(node.num_losses) + "," + str(node.num_draws) + "," + str(node.num_chosen_by_parent) + ")" +"   puct:"+str(puctt(node)) + "    U:"+ str( node.p * sqrt_N /(1 + node.num_chosen_by_parent))     +"     Q:" + str(node.num_losses + 0.5 * node.num_draws/(node.num_chosen_by_parent + 1)))
+            self.stri += "\t*************parent:"+str(node.get_parent_action()) + "    p:"+ str(None)+ "   (loss,draws,games):" + "(" + str(node.num_losses) + "," + str(node.num_draws) + "," + str(node.num_chosen_by_parent) + ")" + "\n"
+    
+        #! END DEBUG
+
+        self.probs = probs
         return probs.argmax()
 
 

@@ -11,6 +11,8 @@ from math import sqrt, log
 from agents.Agent import Agent
 from agents.tree_agents.MCTS_Search import MCTS_Search
 
+from agents.tree_agents.Search_Node import Search_Node
+
 
 
 '''
@@ -24,6 +26,68 @@ class MCTS_Simple_RL_Agent(MCTS_Search):
         self.network = network
         self.device = device
 
+    '''#!REMOVE THIS 
+    def _score_tactic(self,node):
+        
+        if node.num_chosen_by_parent == 0:
+            return 0.  # avoid unseen moves
+        return  0.9 * ((node.num_losses + 0.5*node.num_draws) / node.num_chosen_by_parent) + 0.1 * node.p '''
+    
+    '''! REMOVE THIS
+    def play(self,observation = None):
+        if observation is None: observation = self.environment.get_current_observation() 
+        self.root =  Search_Node(self.environment,observation,initializer_fn=self.node_initializer)
+        self.root.belongs_to_tree = True
+        self.current_node = self.root
+        self.run_n_playouts(self.n_iterations)
+
+        #!,,,
+        current_board = self.root.get_current_observation()
+        x = torch.from_numpy(current_board).float().unsqueeze(0).to(self.device)
+        with torch.no_grad():
+            p = self.network.load_state(x).get_policy_values(True,torch.tensor(self.root.get_mask()))
+        for node in self.root.get_successors():
+            #!debug
+            node.p = p[0][node.parent_action]
+        #!....
+
+        probs = self.get_action_probabilities()
+
+        #! SWAP REMOVE
+        def puctt(node):
+            sqrt_N = sqrt(self.root.num_chosen_by_parent)
+            assert node.num_chosen_by_parent == node.num_losses + node.num_draws + node.num_wins
+            opponent_losses = node.num_losses + 0.5 * node.num_draws
+            U = self.exploration_weight * node.p * sqrt_N /(1 + node.num_chosen_by_parent)
+            Q = opponent_losses/(node.num_chosen_by_parent + 1)
+            return U + Q
+        current = self.current_node
+        sqrt_N = sqrt(current.num_chosen_by_parent)
+        self.stri = "PUCT values \n:"
+        l = current.get_successors()
+        l.sort(key=lambda x: x.get_parent_action())
+        for node in l:
+            #print("parent:"+str(node.get_parent_action()) + "    p:"+ str(node.p)+ "   (loss,draws,games):" + "(" + str(node.num_losses) + "," + str(node.num_draws) + "," + str(node.num_chosen_by_parent) + ")" +"   puct:"+str(puctt(node)) + "    U:"+ str( node.p * sqrt_N /(1 + node.num_chosen_by_parent))     +"     Q:" + str(node.num_losses + 0.5 * node.num_draws/(node.num_chosen_by_parent + 1)))
+            self.stri += "\t\t\tparent:"+str(node.get_parent_action()) + "    p:"+ str(node.p)+ "   (loss,draws,games):" + "(" + str(node.num_losses) + "," + str(node.num_draws) + "," + str(node.num_chosen_by_parent) + ")" +"   puct:"+str(puctt(node)) + "    U:"+ str( self.exploration_weight * node.p * sqrt_N /(1 + node.num_chosen_by_parent))     +"     Q:" + str((node.num_losses + 0.5 * node.num_draws)/(node.num_chosen_by_parent + 1)) + "\n"
+    
+        #! END DEBUG 
+        
+
+
+        return probs.argmax()
+
+    #! DEBUG **
+    
+    def _selection_tactic(self):
+        log_N_vertex = log(self.current_node.num_chosen_by_parent)
+        def uct(node):
+                assert node.num_chosen_by_parent == node.num_losses + node.num_draws + node.num_wins
+                opponent_losses = node.num_losses + 0.5 * node.num_draws
+                return opponent_losses / (node.num_chosen_by_parent+1) + \
+                    self.exploration_weight * sqrt(log_N_vertex / (node.num_chosen_by_parent+1))
+        max_node =  max(self.current_node.get_successors(), key=uct)
+        return max_node'''
+
     def _selection_tactic(self):
         sqrt_N = sqrt(self.current_node.num_chosen_by_parent)
         def puct(node):
@@ -34,19 +98,23 @@ class MCTS_Simple_RL_Agent(MCTS_Search):
             return U + Q
         max_node =  max(self.current_node.get_successors(), key=puct)
         return max_node
+    
 
+
+    
     def _expansion_tactic(self):
             nodes = self.current_node.expand_rest_successors()
             current_board = self.current_node.get_current_observation()
             x = torch.from_numpy(current_board).float().unsqueeze(0).to(self.device)
             with torch.no_grad():
-                p = self.network(x,torch.tensor(self.current_node.get_mask()),False)
+                p = self.network.load_state(x).get_policy_values(False,torch.tensor(self.current_node.get_mask()))
                 p = torch.softmax(p,dim=1)
             for node in nodes:
                 node.p = p[0][node.parent_action]
                 node.belongs_to_tree = True
             random_idx = random.randint(0,len(nodes)-1)
             return nodes[random_idx]
+    
 
 
 

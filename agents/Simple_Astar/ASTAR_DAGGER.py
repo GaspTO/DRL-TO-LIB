@@ -1,7 +1,8 @@
 from numpy.core.numeric import cross
 from torch._C import Value
-from agents.Learning_Agent import Learning_Agent, Config_Learning_Agent
 import agents.tree_agents.MCTS_Agents as MCTS_Agents
+from agents.Learning_Agent import Learning_Agent, Config_Learning_Agent
+from agents.STI.Tree_Search_Iteration import Tree_Search_Iteration
 from torch.distributions import Categorical
 from collections import namedtuple
 from time import sleep, time
@@ -10,6 +11,8 @@ import torch
 import numpy as np
 import math
 from utilities.data_structures.Replay_Buffer import Replay_Buffer
+from agents.Simple_Astar.Astar import ASTAR
+
 
 
 class Config_DAGGER(Config_Learning_Agent):
@@ -27,7 +30,7 @@ class Config_DAGGER(Config_Learning_Agent):
 
 Data = namedtuple('Data', ['observation', 'action','mask'])
 
-class DAGGER(Learning_Agent):
+class ASTAR_DAGGER(Learning_Agent):
     agent_name = "DAGGER"
     def __init__(self, config, expert = None):
         Learning_Agent.__init__(self, config)
@@ -55,7 +58,8 @@ class DAGGER(Learning_Agent):
         * pick action
     """
     def step(self):
-        self.expert_action = self.mcts(self.observation,100,1.0)
+        self.start = time()
+        self.expert_action = self.astar(self.observation,100,1.0)
         self.action, info = self.pick_action()
         #! CAREFUL: using expert action + mcts exploitation
         #self.action = self.expert_action
@@ -127,7 +131,7 @@ class DAGGER(Learning_Agent):
         self.episode_expert_actions = []
         self.episode_expert_action_probabilities = []
         self.episode_expert_action_log_probabilities = [] 
-        #! CAREFUL: swapping turns
+        #! CAREFUL
         self.environment.play_first = self.environment.play_first == False
         
 
@@ -135,12 +139,13 @@ class DAGGER(Learning_Agent):
     *                            EXPERT AGENTS                              
     *            Main interface to be used by every implemented agent               
     """""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
-    def mcts(self,observation,n,exploration_weight):
+    
+    def mcts_original(self,observation,n,exploration_weight):
         #todo some things in here need config
         search = MCTS_Agents.MCTS_Search(self.environment.environment,n,exploration_weight=exploration_weight)
         action = search.play(observation)
         return action
-
+    '''
     def mcts_simple_rl(self,observation,n,exploration_weight):
         #todo some things in here need config««
         search = MCTS_Agents.MCTS_Simple_RL_Agent(self.environment.environment,n,self.policy,self.device,exploration_weight=exploration_weight)
@@ -152,11 +157,32 @@ class DAGGER(Learning_Agent):
         action = search.play(observation)
         return action
 
-    def mcts_IDAstar_rl(self,observation,n):
-        raise ValueError("broken")
-        search = MCTS_Agents.MCTS_IDAstar_Agent(self.environment.environment,n,self.policy,self.device,exploration_weight=5.0)
+    def mcts_IDAstar_rl(self,observation,n,exploration_weight):
+        search = MCTS_Agents.MCTS_IDAstar_Agent(self.environment.environment,n,self.policy,self.device,exploration_weight=exploration_weight)
         action = search.play(observation)
         return action
+    '''
+
+    def mcts(self,observation,n,exploration_weight):
+        env = self.environment.environment
+        agent = Tree_Search_Iteration(env,playout_iterations=n,search_expansion_iterations=1,debug=False)
+        #* tree policy 
+        agent.set_tree_policy_tactic(Greedy_DFS(agent))
+        #agent.set_tree_policy_tactic(Greedy_Best_First_Search(agent))
+        #agent.set_tree_policy_tactic(Adversarial_Greedy_Best_First_Search(agent))
+        
+        #* expand policy
+        agent.set_expansion_tactic(One_Successor_Rollout(agent))
+        action = agent.play(observation=observation)
+        return action
+
+    def astar(self,observation,n,exploration_weight):
+        env = self.environment.environment
+        agent = ASTAR(env,network=self.policy)
+        
+        action = agent.play(observation=observation)
+        return action
+                
 
 
 

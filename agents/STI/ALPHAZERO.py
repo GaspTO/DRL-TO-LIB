@@ -27,7 +27,7 @@ class ALPHAZERO(Learning_Agent):
     agent_name = "ALPHAZERO"
     def __init__(self, config, expert = None):
         Learning_Agent.__init__(self, config)
-        self.network = self.config.architecture(50,25).to(torch.device("cpu"))
+        self.network = self.config.architecture(18,9).to(torch.device("cpu"))
         self.expert = expert
         #!OPTIMIZE
         self.optimizer = optim.Adam(self.network.parameters(), lr=2e-05)

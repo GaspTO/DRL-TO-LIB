@@ -143,8 +143,10 @@ class Learning_Agent(Agent):
         while self.episode_number < num_episodes:
             self.reset()
             self.do_episode()
-            if self.debug_mode == True: self.logger.info("Game ended -- Observation and Reward Sequence is:\n{}".format(self.pack_observations_and_rewards_side_by_side()))
-            else: self.logger.info("Game ended -- Last observation:\n{}".format(self.episode_next_observations[-1]))
+            #if self.debug_mode == True: self.logger.info("Game ended -- Observation and Reward Sequence is:\n{}".format(self.pack_observations_and_rewards_side_by_side()))
+            #else: 
+            #! this is the one, but ill replace it for the time being self.logger.info("Game ended -- Last observation:\n{}".format(self.episode_next_observations[-1]))
+            self.logger.info("Game ended -- Last observation:\n{}".format(self.episode_next_observations[-1][0] + -1*self.episode_next_observations[-1][1]))
             if save_and_print_results: self.save_and_print_result()
             self.writer.flush()
         time_taken = time.time() - start
@@ -155,12 +157,12 @@ class Learning_Agent(Agent):
     def do_episode(self):
         while not self.is_episode_finished():
             self.step()
+            self.save_step_info()
+            self.end_step_block() 
             if self.time_to_learn():
                 self.before_learn_block()
                 self.learn()
                 self.after_learn_block()
-            self.save_step_info()
-            self.end_step_block() 
             self.advance_to_next_state()
         self.end_episode()
 
@@ -203,8 +205,6 @@ class Learning_Agent(Agent):
 
     def end_episode(self):
         self.episode_number += 1
-        if self.debug_mode:
-            self.log_updated_probabilities()
         self.logger.info("total reward: {}".format(self.total_episode_score_so_far))
 
     def reset(self):

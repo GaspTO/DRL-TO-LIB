@@ -28,7 +28,6 @@ class Config_Reinforce(Config_Learning_Agent):
         return self.learning_rate
 
 
-    
 class REINFORCE(Learning_Agent):
     agent_name = "REINFORCE"
     def __init__(self, config):
@@ -36,8 +35,6 @@ class REINFORCE(Learning_Agent):
         self.policy = self.config.architecture()
         self.optimizer = optim.Adam(self.policy.parameters(), lr=self.config.learning_rate)
 
-    
-    
     """""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
     *                            MAIN INTERFACE                               
     *            Main interface to be used by every implemented agent               
@@ -50,6 +47,7 @@ class REINFORCE(Learning_Agent):
     Methods for Step:
         * step
         * pick action
+        * save step info
     """
     def step(self):
         self.action, info = self.pick_action()
@@ -61,13 +59,18 @@ class REINFORCE(Learning_Agent):
     def pick_action(self,current_observation=None) -> tuple([int,dict]):
         if current_observation is None: current_observation = self.observation
         input_state = torch.from_numpy(current_observation).float().unsqueeze(0).to(self.device)
-        mask = self.environment.get_mask()
-        action_values = self.policy(input_state,mask,apply_softmax=False)
-        action_values_copy = torch.softmax(action_values,dim=1)
-        action_distribution = Categorical(action_values_copy) # this creates a distribution to sample from
+        input_mask = torch.from_numpy(self.mask).unsqueeze(0).to(self.device)
+        action_values_logits = self.policy(input_state,input_mask,False)
+        action_values_softmax = torch.softmax(action_values_logits,dim=1)
+        action_distribution = Categorical(action_values_softmax) # this creates a distribution to sample from
         action = action_distribution.sample()
-        return action.item(), {"action_probability": torch.softmax(action_values,dim=1)[0][action],
-            "action_log_probability":torch.log_softmax(action_values,dim=1)[0][action]}
+        return action.item(), {"action_probability": torch.softmax(action_values_softmax,dim=1)[0][action],
+            "action_log_probability":torch.log_softmax(action_values_logits,dim=1)[0][action]}
+
+    def save_step_info(self):
+        super().save_step_info()
+        self.episode_action_probabilities.append(self.action_probability)
+        self.episode_action_log_probabilities.append(self.action_log_probability)
 
     """
     Methods for Learn:
@@ -76,39 +79,40 @@ class REINFORCE(Learning_Agent):
         * calculate_discounted_returns
     """
     def learn(self):
-        policy_loss = self.calculate_policy_loss_on_episode(episode_rewards=self.episode_rewards,episode_log_probs=self.episode_action_log_probabilities)
+        raise ValueError(",,")
+        policy_loss = self.calculate_policy_loss_on_episode()
         self.take_optimisation_step(self.optimizer,self.policy,policy_loss,self.config.get_gradient_clipping_norm())
         self.log_updated_probabilities()
 
-    def calculate_policy_loss_on_episode(self,alpha=1,episode_rewards=None,episode_log_probs=None,episode_critic_values=None):
+    def calculate_policy_loss_on_episode(self,episode_action_log_probabilities=None,episode_rewards=None,discount_rate=None):
+        raise ValueError(",,")
         if episode_rewards is None: episode_rewards = self.episode_rewards
-        if episode_log_probs is None: episode_log_probs = self.episode_action_log_probabilities
-        if episode_critic_values is None: episode_critic_values = self.episode_critic_values
+        if discount_rate is None: discount_rate = self.config.get_discount_rate()
+        if episode_action_log_probabilities is None: episode_action_log_probabilities = self.episode_action_log_probabilities
 
-        self.all_discounted_returns = torch.tensor(self.calculate_discounted_returns(episode_rewards=episode_rewards))
-        self.advantages = self.all_discounted_returns - torch.cat(episode_critic_values)
+        all_discounted_returns = torch.tensor(self.calculate_discounted_episode_returns(episode_rewards=episode_rewards,discount_rate=discount_rate))
 
-        action_log_probabilities_for_all_episodes = torch.cat(episode_log_probs)
-        actor_loss_values = -1 * action_log_probabilities_for_all_episodes * self.advantages
-        self.actor_loss =   actor_loss_values.mean() * alpha
-        return self.actor_loss
+        ''' advantages are just logprob * reward '''
+        advantages = all_discounted_returns
+        #self.advantages = self.all_discounted_returns - torch.cat(episode_critic_values)
 
-    def calculate_discounted_returns(self,episode_rewards=None):
+        action_log_probabilities_for_all_episodes = torch.cat(episode_action_log_probabilities)
+        actor_loss_values = -1 * action_log_probabilities_for_all_episodes * advantages
+        actor_loss =   actor_loss_values.mean()
+        return actor_loss
+
+    def calculate_discounted_episode_returns(self,episode_rewards=None,discount_rate=None):
+        raise ValueError(",,")
         if episode_rewards is None: episode_rewards = self.episode_rewards
+        if discount_rate is None: discount_rate = self.config.get_discount_rate()
         discounted_returns = []
-        discounted_reward = self.terminal_reward
+        discounted_total_reward = 0.
         for ix in range(len(episode_rewards)):
-            discounted_reward = episode_rewards[-(ix + 1)] + self.config.get_discount_rate()*discounted_reward
-            discounted_returns.insert(0,discounted_reward)
+            discounted_total_reward = episode_rewards[-(ix + 1)] + discount_rate*discounted_total_reward
+            discounted_returns.insert(0,discounted_total_reward)
         return discounted_returns
 
-    """
-    method for save_step_info
-    """
-    def save_step_info(self):
-        super().save_step_info()
-        self.episode_action_probabilities.append(self.action_probability)
-        self.episode_action_log_probabilities.append(self.action_log_probability)
+    
 
 
 
@@ -128,10 +132,11 @@ class REINFORCE(Learning_Agent):
         full_text = []
         for s,a,l in zip(self.episode_observations,self.episode_actions,self.episode_action_log_probabilities):
             with torch.no_grad():
-                input_state = torch.from_numpy(s).float().unsqueeze(0).to(self.device)
-            actor_values = torch.softmax(self.policy(input_state),dim=1)
+                state = torch.from_numpy(s).float().unsqueeze(0).to(self.device)
+                mask = torch.tensor(self.environment.environment.get_mask(observation=s))
+                prob = torch.softmax(self.policy(state,mask=mask,apply_softmax=False),dim=1)
             text = """\r D_reward {0: .2f}, action: {1: 2d}, | old_prob: {2: .10f}, new_prob: {3: .10f}"""
-            formatted_text = text.format(r,a,math.exp(l),actor_values[0][a].item())
+            formatted_text = text.format(r,a,math.exp(l),prob[0][a].item())
             if(print_results): print(formatted_text)
             full_text.append(formatted_text )
         self.logger.info("Updated probabilities and Loss After update:" + ''.join(full_text))

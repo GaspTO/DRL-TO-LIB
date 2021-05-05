@@ -46,11 +46,6 @@ class Config_DQN(Config_Learning_Agent):
 
   
 
-
-
- 
-
-
 class DQN(Learning_Agent):
     """A deep Q learning agent"""
     agent_name = "DQN"
@@ -67,6 +62,7 @@ class DQN(Learning_Agent):
         super(DQN, self).reset_game()
         self.update_learning_rate(self.config.get_learning_rate(), self.q_network_optimizer)
 
+    
     def step(self):
         """Runs a step within a game including a learning step if required"""
         while not self.done:
@@ -76,9 +72,8 @@ class DQN(Learning_Agent):
                     self.learn()
             self.global_step_number += 1
         self.episode_number += 1
-
-
-    def conduct_action(self):
+    
+    def step(self):
         action = self.pick_action()
         next_state, reward, done, _ = self.environment.step(action)
         self.action = action
@@ -127,7 +122,11 @@ class DQN(Learning_Agent):
         self.take_optimisation_step(self.q_network_optimizer, self.q_network_local, self.loss, self.config.get_gradient_clipping_norm())
         actions_list = [action_X.item() for action_X in actions]
         if(self.debug_mode): self.logger.info("Batch to learn from: Action:nºtimes {}".format(Counter(actions_list)))
-        
+
+    def time_to_learn(self):
+        """ official method of interface """
+        return self.time_for_q_network_to_learn()
+
     def time_for_q_network_to_learn(self):
         """Returns boolean indicating whether enough steps have been taken for learning to begin and there are
         enough transitions in the replay buffer to learn from"""

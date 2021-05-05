@@ -107,7 +107,7 @@ class Policy_Re2(nn.Module):
 """ Config """
 config = Config()
 config.debug_mode = True
-config.environment = Custom_K_Row(board_shape=5, target_length=4)
+config.environment = Custom_K_Row(board_shape=3, target_length=3)
 #config.environment = Simple_Playground_Env(K_Row_Interface(board_shape=3, target_length=3))
 #config.environment = Simple_Self_Play(episodes_to_update=100,environment=config.enviroig.environment
 config.file_to_save_data_results = "results/data_and_graphs/Cart_Pole_Results_Data.pkl"
