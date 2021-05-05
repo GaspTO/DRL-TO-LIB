@@ -10,6 +10,11 @@ import torch.nn as nn
 import random
 
 '''
+NEURAL NETWORK
+'''
+from agents.Neural_Agent import Policy_Value_MLP, Double_Policy_Value_MLP
+
+'''
 Environments
 '''
 from environments.gomoku.Gomoku import GomokuEnv
@@ -46,7 +51,8 @@ STI
 '''
 #from agents.STI.Tree_Search_Iteration import Tree_Search_Iteration
 from agents.STI.NEW_DAGGER import NEW_DAGGER
-from agents.STI.NEW_REINFORCE import NEW_REINFORCE
+from agents.STI.NEW_DAGGER_REINFORCE import NEW_DAGGER_REINFORCE
+from agents.STI.ALPHAZERO import ALPHAZERO
 '''
 ASTAR
 '''
@@ -81,13 +87,13 @@ class Policy_Re2(nn.Module):
         super().__init__()
         self.net = nn.Sequential(
             nn.Flatten(start_dim=1),
-            nn.Linear(50,300),
+            nn.Linear(18,300),
             nn.ReLU(),
             nn.Linear(300,300),
             nn.ReLU(),
             nn.Linear(300,300),
             nn.ReLU(),
-            nn.Linear(300,25))
+            nn.Linear(300,9))
 
     def forward(self, x, mask, apply_softmax):
         self.x1 = x
@@ -100,7 +106,7 @@ class Policy_Re2(nn.Module):
 
 """ Config """
 config = Config()
-config.debug_mode = False
+config.debug_mode = True
 config.environment = Custom_K_Row(board_shape=5, target_length=4)
 #config.environment = Simple_Playground_Env(K_Row_Interface(board_shape=3, target_length=3))
 #config.environment = Simple_Self_Play(episodes_to_update=100,environment=config.enviroig.environment
@@ -126,7 +132,7 @@ config_Learning_Agent = Config_Learning_Agent(config)
 config_Learning_Agent.batch_size = 16
 config_Learning_Agent.gradient_clipping_norm = 0.7
 config_Learning_Agent.clip_rewards = False
-config_Learning_Agent.architecture =  Policy_Re2
+config_Learning_Agent.architecture =  Double_Policy_Value_MLP
 config_Learning_Agent.input_dim = None 
 config_Learning_Agent.output_size = None
 config_Learning_Agent.is_mask_needed = True
@@ -167,9 +173,10 @@ config.exploration_worker_difference = 2.0
 
 
 """ AGENTS """
+config_reinforce.environment = Custom_Simple_Playground(config.environment,play_first=True)
+
 #agent = REINFORCE(config_reinforce)
 #agent = REINFORCE_BASELINE(config_reinforce_baseline)
-
 #agent = REINFORCEadv_krow(config_reinforce)
 #agent = REINFORCE_Baseline(config_reinforce_baseline)
 #agent = Logic_Loss_Reinforce(config_reinforce) 
@@ -185,10 +192,11 @@ config.exploration_worker_difference = 2.0
 #agent = A3C(config_A3C) 
 
 
-config_reinforce.environment = Custom_Simple_Playground(config.environment,play_first=True)
+
 #agent = DAGGER(config_reinforce)
 agent = NEW_DAGGER(config_reinforce)
-#agent = NEW_REINFORCE(config_reinforce) #! I was fixing this
+agent = ALPHAZERO(config_reinforce)
+#agent = NEW_DAGGER_REINFORCE(config_reinforce) #! <---
 #agent = ASTAR_DAGGER(config_reinforce)
 
 #config_reinforce.environment.add_agent(MCTS_Simple_RL_Agent(config_reinforce.environment.environment,n_iterations=100,network=agent.policy,device=agent.device))

@@ -9,7 +9,7 @@ An Agent only makes sense in the context of an environment
 class Agent(): 
     def __init__(self,environment):
         self.environment = environment
-        self.observation = self.environment.get_current_observation()
+        self.observation = self.environment.get_current_observation() #! uhmmm
         self.next_observation = None
         self.action = None
         self.reward = None
