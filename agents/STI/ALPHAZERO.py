@@ -21,13 +21,13 @@ from agents.STI.Astar_minimax import Astar_minimax
 
 
 
-Episode_Tuple = namedtuple('Episode_Tuple', ['episode_observations','episode_masks','episode_actions','episode_expert_actions','episode_net_actions','episode_expert_action_probability_vector','episode_rewards'])
+Episode_Tuple = namedtuple('Episode_Tuple', ['episode_observations','episode_masks','episode_actions','episode_expert_actions','episode_net_actions','episode_expert_action_probability_vector','episode_rewards','episode_expert_state_values'])
 
 class ALPHAZERO(Learning_Agent):
     agent_name = "ALPHAZERO"
     def __init__(self, config, expert = None):
         Learning_Agent.__init__(self, config)
-        self.network = self.config.architecture(18,9).to(torch.device("cpu"))
+        self.network = self.config.architecture(18,9,1000).to(torch.device("cpu"))
         self.expert = expert
         #!OPTIMIZE
         self.optimizer1 = optim.Adam(self.network.parameters(), lr=2e-05)
@@ -67,7 +67,7 @@ class ALPHAZERO(Learning_Agent):
         #self.stri_action = self.mcts_original(self.observation,100,1.0)
         #self.expert_action = self.astar_minimax(self.observation)
         #! 100
-        self.expert_action, self.expert_action_probability_vector = self.try_expert(self.observation,25,1,1.0)
+        self.expert_action, self.expert_action_probability_vector, self.expert_state_value = self.try_expert(self.observation,100,1,1.0)
         ''' '''
 
         self.net_action, info = self.pick_action()
@@ -118,16 +118,23 @@ class ALPHAZERO(Learning_Agent):
                 batch_x = torch.FloatTensor(episode.episode_observations).to(torch.device("cuda" if torch.cuda.is_available() else "cpu"))
                 self.network.load_state(batch_x)
                 loss_policy_on_tree = self.learn_policy_on_tree(episode)
+                loss_value_on_tree = self.learn_value_on_tree(episode)
                 #loss_policy_on_trajectory = self.learn_policy_on_trajectory_reinforce(episode)
                 #loss_value_on_trajectory = self.learn_value_on_trajectory(episode)
                 #! ADD TOTAL LOSS
-                total_loss = loss_policy_on_tree #+ 0*loss_policy_on_trajectory  + 0*loss_value_on_trajectory
+                total_loss = loss_value_on_tree
                 self.take_optimisation_step(self.optimizer1,self.network,total_loss, self.config.get_gradient_clipping_norm())
 
                
         self.network.to(torch.device("cpu"))
         self.episodes = self.episodes[:self.memory_size]
 
+    def learn_value_on_tree(self,episode):
+        network_state_values = self.network.get_state_value()
+        target_state_values = torch.cat(episode.episode_expert_state_values)
+        loss_vector = (network_state_values - target_state_values)**2
+        loss = loss_vector.mean()
+        return loss
 
     def learn_policy_on_tree(self,episode):
         masks = torch.Tensor(episode.episode_masks)
@@ -136,7 +143,6 @@ class ALPHAZERO(Learning_Agent):
         target_policy_values = torch.FloatTensor(episode.episode_expert_action_probability_vector).reshape(-1)
         loss = -1 * target_policy_values.dot(network_log_policy_values)
         return loss
-
 
     def learn_value_on_trajectory(self,episode,discount_rate=1):
         def calculate_discounted_episode_returns(episode_rewards,discount_rate):
@@ -147,9 +153,9 @@ class ALPHAZERO(Learning_Agent):
                 discounted_returns.insert(0,discounted_total_reward)
             return discounted_returns
 
-        state_value = self.network.get_state_value()
+        state_values = self.network.get_state_value()
         discounted_rewards = torch.tensor(calculate_discounted_episode_returns(episode.episode_rewards,discount_rate=discount_rate))
-        loss_vector = (state_value - discounted_rewards)**2
+        loss_vector = (state_values - discounted_rewards)**2
         loss = loss_vector.mean()
         return loss
 
@@ -202,6 +208,7 @@ class ALPHAZERO(Learning_Agent):
         #self.episode_expert_action_log_probabilities.append(self.expert_action_log_probability)
         #* state value
         self.episode_net_state_values.append(self.net_state_value)
+        self.episode_expert_state_values.append(self.expert_state_value)
         #* save trajectories
         if self.done == True:
              self.episodes.append(Episode_Tuple
@@ -211,7 +218,8 @@ class ALPHAZERO(Learning_Agent):
                 self.episode_expert_actions,
                 self.episode_net_actions,
                 self.episode_expert_action_probability_vector,
-                self.episode_rewards))
+                self.episode_rewards,
+                self.episode_expert_state_values))
 
     def end_episode(self):
         super().end_episode()
@@ -229,6 +237,7 @@ class ALPHAZERO(Learning_Agent):
         self.episode_net_action_probability_vector = []
         self.episode_expert_action_probability_vector = []
         self.episode_net_state_values = []
+        self.episode_expert_state_values = []
         #! CAREFUL
         self.environment.play_first = self.environment.play_first == False
         
@@ -265,8 +274,8 @@ class ALPHAZERO(Learning_Agent):
     def try_expert(self,observation,n_rounds,k,exploration_weight):
         env = self.environment.environment
         #* eval functions
-        #eval_fn = UCT()
-        eval_fn = PUCT()
+        eval_fn = UCT()
+        #eval_fn = PUCT()
 
         #* tree policy 
         tree_policy =  Greedy_DFS(evaluation_fn=eval_fn)
@@ -276,19 +285,20 @@ class ALPHAZERO(Learning_Agent):
         #* expand policy
         #! expand policy
         #tree_expansion = One_Successor_Rollout()
-        tree_expansion = Network_One_Successor_Rollout(self.network,self.device)
+        #tree_expansion = Network_One_Successor_Rollout(self.network,self.device)
         #tree_expansion = Network_Policy_Value(self.network,self.device)
-        #tree_expansion = Normal_With_Network_Estimation(self.network,self.device)
+        tree_expansion = Normal_With_Network_Estimation(self.network,self.device)
 
         agent = Tree_Search_Iteration(env,playout_iterations=n_rounds,tree_policy=tree_policy,tree_expansion=tree_expansion,search_expansion_iterations=k)
-        action_probs = agent.play(observation=observation)
+        action_probs, info = agent.play(observation=observation)
         #action_rl = self.mcts_simple_rl(observation,100,1.0)
 
         #!sampling
         #action_distribution = Categorical(torch.tensor(action_probs)) # this creates a distribution to sample from
         #action = action_distribution.sample()
         action = action_probs.argmax()
-        return action, action_probs
+
+        return action, action_probs, info["root_probability"]
                 
     
     def astar_minimax(self,observation):
@@ -307,13 +317,14 @@ class ALPHAZERO(Learning_Agent):
     def log_updated_probabilities(self,print_results=False):
         r = self.reward
         full_text = []
-        for observation,mask,action,expert_action,net_action,reward,state_value,expert_vector,net_vector in zip(
+        for observation,mask,action,expert_action,net_action,reward,expert_state_value,net_state_value,expert_vector,net_vector in zip(
                 self.episode_observations,
                 self.episode_masks,
                 self.episode_actions,
                 self.episode_expert_actions,
                 self.episode_net_actions,
                 self.episode_rewards,
+                self.episode_expert_state_values,
                 self.episode_net_state_values,
                 self.episode_expert_action_probability_vector,
                 self.episode_net_action_probability_vector,
@@ -331,24 +342,25 @@ class ALPHAZERO(Learning_Agent):
             modified_observation = observation[0] + -1*observation[1]
             
 
-            text = "D_reward \t{0: .2f} \n \
+            text = "reward \t{0: .2f} \n \
             agent_action: \t{1: 2d} \n \
             expert_action: \t{2: 2d} \n \
             net_action: \t{3: 2d} \n \
             taken_action_prev_prob:\t{4: .10f} \n \
             taken_action_after_prob: \t{5: .10f} \n \
-            before_Net_Value_Estimate: \t{6: .2f} \n \
-            after_Net_Value_Estimate: \t{7: .2f} \n \
-            expert_____vector: \t{8}\n \
-            before_net_vector: \t{9}\n \
-            after__net_vector:  \t{10}\n{11}\n--------------------------\n"
+            Expert_Value_Estimate: \t {6: .2f} \n \
+            before_Net_Value_Estimate: \t{7: .2f} \n \
+            after_Net_Value_Estimate: \t{8: .2f} \n \
+            expert_____vector: \t{9}\n \
+            before_net_vector: \t{10}\n \
+            after__net_vector:  \t{11}\n{12}\n--------------------------\n"
             
 
             formatted_text = text.format(
                 reward,
                 action, expert_action.item(), net_action,
                 net_vector[0,action].item(), new_net_vector[0,action].item(),
-                state_value.item(), new_state_value.item(),
+                expert_state_value.item(),net_state_value.item(), new_state_value.item(),
                 expert_vector_string,
                 net_vector_string,
                 new_net_vector_string,

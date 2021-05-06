@@ -98,32 +98,32 @@ class Policy_Value_MLP(Neural_Agent):
 
 
 class Double_Policy_Value_MLP(Neural_Agent):
-    def __init__(self,input_size=18,action_size=9):
+    def __init__(self,input_size=18,action_size=9,hidden_nodes=300):
         super().__init__()
         self.pnet = nn.Sequential(
             nn.Flatten(start_dim=1),
-            nn.Linear(input_size,300),
+            nn.Linear(input_size,hidden_nodes),
             nn.ReLU(),
-            nn.Linear(300,300),
+            nn.Linear(hidden_nodes,hidden_nodes),
             nn.ReLU(),
-            nn.Linear(300,300),
+            nn.Linear(hidden_nodes,hidden_nodes),
             nn.ReLU(),
-            nn.Linear(300,300),
+            nn.Linear(hidden_nodes,hidden_nodes),
             nn.ReLU(),
-            nn.Linear(300,action_size),    
+            nn.Linear(hidden_nodes,action_size),    
         )
 
         self.vnet = nn.Sequential(
             nn.Flatten(start_dim=1),
-            nn.Linear(input_size,300),
+            nn.Linear(input_size,hidden_nodes),
             nn.ReLU(),
-            nn.Linear(300,300),
+            nn.Linear(hidden_nodes,hidden_nodes),
             nn.ReLU(),
-            nn.Linear(300,300),
+            nn.Linear(hidden_nodes,hidden_nodes),
             nn.ReLU(),
-            nn.Linear(300,300),
+            nn.Linear(hidden_nodes,hidden_nodes),
             nn.ReLU(),
-            nn.Linear(300,1),   
+            nn.Linear(hidden_nodes,1),   
         )
 
     def load_state(self,x):

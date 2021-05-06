@@ -60,7 +60,7 @@ class Tree_Search_Iteration(Agent):
         self.expand_tactic.initialize_node_attributes(self.root)
         self.root.belongs_to_tree = True
         self.run_n_playouts(n=self.playout_iterations,k=self.search_expansion_iterations)
-        return self._get_best_action()
+        return self._get_action_probabilities(), {"root_probability":self._score_tactic_win_ratio(self.root)}
 
     def _get_best_action(self):
         return self._get_action_probabilities()
@@ -95,6 +95,11 @@ class Tree_Search_Iteration(Agent):
         if node.N == 0:
             return 0.  # avoid unseen moves 
         return (node.N) / node.get_parent_node().N
+
+    def _score_tactic_win_ratio(self,node):
+        if node.N == 0:
+            return 0.  # avoid unseen moves 
+        return (node.W) / node.N
 
 
     '''

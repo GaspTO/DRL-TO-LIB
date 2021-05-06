@@ -340,7 +340,7 @@ class Learning_Agent(Agent):
         for name, param in network.named_parameters():
             if(param.grad is not None):
                 param_norm = param.grad.data.norm(2)
-            total_norm += param_norm.item() ** 2
+                total_norm += param_norm.item() ** 2
         total_norm = total_norm ** (1. / 2)
         for g in optimizer.param_groups:
             learning_rate = g['lr']

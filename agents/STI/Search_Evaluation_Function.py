@@ -19,11 +19,11 @@ class UCT(Search_Evaluation_Function):
 
     ''' exploration '''
     def U(self,node):
-        return self.exploration_weight * sqrt(self.log_N_vertex / (node.N))
+        return self.exploration_weight * sqrt(self.log_N_vertex / (1 + node.N))
 
     ''' exploitation '''
     def Q(self,node):
-        return (-node.W) / node.N
+        return (-node.W) / (1 + node.N)
 
     def evaluate(self,node):
         self.log_N_vertex = log(node.get_parent_node().N)

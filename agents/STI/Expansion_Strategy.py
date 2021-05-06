@@ -135,6 +135,7 @@ class Network_One_Successor_Rollout(One_Successor_Rollout):
 
 class Network_Policy_Value(Expansion_Strategy):
     '''
+        ALPHAZERO ONE
         Uses node.N, node.W, node.P
     '''
     def __init__(self,network,device):
@@ -205,7 +206,7 @@ class Network_Policy_Value(Expansion_Strategy):
 
 class Normal_With_Network_Estimation(Expansion_Strategy):
     '''
-        Uses node.N, node.W, node.P
+        Uses node.N, node.W
     '''
     def __init__(self,network,device):
         super().__init__()
@@ -225,7 +226,6 @@ class Normal_With_Network_Estimation(Expansion_Strategy):
         node.W = 0
 
     def _expand(self,node):
-        ''' expand all and adds node.p '''
         if node.is_terminal():
             raise ValueError("Should not be terminal") 
         succ_nodes = node.expand_rest_successors()
@@ -246,9 +246,9 @@ class Normal_With_Network_Estimation(Expansion_Strategy):
         winner = node.get_winner_player()
         #! rewards are hardcoded
         if TIE_PLAYER_NUMBER == winner.get_number():
-            points = 0 #! debug should be 0
+            points = -0.5 #! debug should be 0
         elif node.get_current_player().get_number() == winner.get_number():
-            points = 1 #! debug should be 1
+            points = 0 #! debug should be 1
         else:
             points = -1#....
         return node,node.get_current_player(),points
