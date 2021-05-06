@@ -30,9 +30,9 @@ class ALPHAZERO(Learning_Agent):
         self.network = self.config.architecture(18,9).to(torch.device("cpu"))
         self.expert = expert
         #!OPTIMIZE
-        self.optimizer = optim.Adam(self.network.parameters(), lr=2e-05)
-        #self.optimizer = optim.Adam(self.network.parameters(), lr=2e-07)
-        #self.optimizer = optim.SGD(self.network.parameters(),lr=2e-03)
+        self.optimizer1 = optim.Adam(self.network.parameters(), lr=2e-05)
+        self.optimizer2 = optim.Adam(self.network.parameters(), lr=2e-06)
+        self.optimizer3 = optim.SGD(self.network.parameters(),lr=2e-07)
         self.trajectories = []
         self.dataset = []
         self.mask_dataset = []
@@ -66,6 +66,7 @@ class ALPHAZERO(Learning_Agent):
         #self.expert_action,self.expert_action_tree_probs = self.mcts_simple_rl(self.observation,25,1.0)
         #self.stri_action = self.mcts_original(self.observation,100,1.0)
         #self.expert_action = self.astar_minimax(self.observation)
+        #! 100
         self.expert_action, self.expert_action_probability_vector = self.try_expert(self.observation,25,1,1.0)
         ''' '''
 
@@ -117,11 +118,13 @@ class ALPHAZERO(Learning_Agent):
                 batch_x = torch.FloatTensor(episode.episode_observations).to(torch.device("cuda" if torch.cuda.is_available() else "cpu"))
                 self.network.load_state(batch_x)
                 loss_policy_on_tree = self.learn_policy_on_tree(episode)
-                loss_policy_on_trajectory = self.learn_policy_on_trajectory_reinforce(episode)
-                loss_value_on_trajectory = self.learn_value_on_trajectory(episode)
+                #loss_policy_on_trajectory = self.learn_policy_on_trajectory_reinforce(episode)
+                #loss_value_on_trajectory = self.learn_value_on_trajectory(episode)
                 #! ADD TOTAL LOSS
-                total_loss = loss_policy_on_tree + 0.0 * loss_policy_on_trajectory  + loss_value_on_trajectory
-                self.take_optimisation_step(self.optimizer,self.network,total_loss,self.config.get_gradient_clipping_norm())
+                total_loss = loss_policy_on_tree #+ 0*loss_policy_on_trajectory  + 0*loss_value_on_trajectory
+                self.take_optimisation_step(self.optimizer1,self.network,total_loss, self.config.get_gradient_clipping_norm())
+
+               
         self.network.to(torch.device("cpu"))
         self.episodes = self.episodes[:self.memory_size]
 
@@ -271,9 +274,10 @@ class ALPHAZERO(Learning_Agent):
         #tree_policy = Local_Greedy_DFS_With_Global_Restart(evaluation_fn=eval_fn)
         
         #* expand policy
+        #! expand policy
         #tree_expansion = One_Successor_Rollout()
-        #tree_expansion = Network_One_Successor_Rollout(self.network,self.device)
-        tree_expansion = Network_Policy_Value(self.network,self.device)
+        tree_expansion = Network_One_Successor_Rollout(self.network,self.device)
+        #tree_expansion = Network_Policy_Value(self.network,self.device)
         #tree_expansion = Normal_With_Network_Estimation(self.network,self.device)
 
         agent = Tree_Search_Iteration(env,playout_iterations=n_rounds,tree_policy=tree_policy,tree_expansion=tree_expansion,search_expansion_iterations=k)

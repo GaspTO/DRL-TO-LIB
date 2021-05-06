@@ -65,44 +65,6 @@ print("seed=" + str(seed))
 
 
 
-class Critic(nn.Module):
-    def __init__(self):
-        super().__init__()
-        self.net = nn.Sequential(
-            nn.Flatten(),
-            nn.Linear(32,80),
-            nn.ReLU(),
-            nn.Linear(80,80),
-            nn.ReLU(),
-            nn.Linear(80,1),
-        )
-        
-    def forward(self, x, mask=None):
-       return self.net(x)
-        
-
-
-class Policy_Re2(nn.Module):
-    def __init__(self):
-        super().__init__()
-        self.net = nn.Sequential(
-            nn.Flatten(start_dim=1),
-            nn.Linear(18,300),
-            nn.ReLU(),
-            nn.Linear(300,300),
-            nn.ReLU(),
-            nn.Linear(300,300),
-            nn.ReLU(),
-            nn.Linear(300,9))
-
-    def forward(self, x, mask, apply_softmax):
-        self.x1 = x
-        self.logits = self.net(self.x1)
-        if(mask is not None):
-            self.logits = torch.where(mask == 0,torch.tensor(-1e18),self.logits)
-        self.output = self.logits if apply_softmax == False else torch.softmax(self.logits,dim=1)
-        return self.output
-
 
 """ Config """
 config = Config()
@@ -146,7 +108,7 @@ config_reinforce.learning_rate = 2e-12 #2e-12
 
 """ Config_Reinforce_Baseline """
 config_reinforce_baseline = Config_Reinforce_Baseline(config_reinforce)
-config_reinforce_baseline.critic_architecture = Critic
+#config_reinforce_baseline.critic_architecture = Critic
 config_reinforce_baseline.critic_learning_rate = 2e-05
 
 """ Config DQN """
@@ -198,7 +160,7 @@ agent = NEW_DAGGER(config_reinforce)
 agent = ALPHAZERO(config_reinforce)
 #agent = NEW_DAGGER_REINFORCE(config_reinforce) #! <---
 #agent = ASTAR_DAGGER(config_reinforce)
-
+torch.autograd.set_detect_anomaly(True)
 #config_reinforce.environment.add_agent(MCTS_Simple_RL_Agent(config_reinforce.environment.environment,n_iterations=100,network=agent.policy,device=agent.device))
 config_reinforce.environment.add_agent(MCTS_Search(config_reinforce.environment.environment,n_iterations=100))
 game_scores, rolling_scores, time_taken = agent.run_n_episodes(num_episodes=100000)
