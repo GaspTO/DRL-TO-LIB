@@ -1,6 +1,4 @@
 from random import shuffle
-from numpy.core.numeric import cross
-from torch._C import Value
 import agents.tree_agents.MCTS_Agents as MCTS_Agents
 from agents.Learning_Agent import Learning_Agent, Config_Learning_Agent
 from agents.STI.Tree_Search_Iteration import Tree_Search_Iteration
@@ -27,12 +25,13 @@ class ALPHAZERO(Learning_Agent):
     agent_name = "ALPHAZERO"
     def __init__(self, config, expert = None):
         Learning_Agent.__init__(self, config)
+        #!hidden nodes
         self.network = self.config.architecture(18,9,1000).to(torch.device("cpu"))
         self.expert = expert
         #!OPTIMIZE
         self.optimizer1 = optim.Adam(self.network.parameters(), lr=2e-05)
         self.optimizer2 = optim.Adam(self.network.parameters(), lr=2e-06)
-        self.optimizer3 = optim.SGD(self.network.parameters(),lr=2e-07)
+        self.optimizerSGD = optim.SGD(self.network.parameters(),lr=2e-07)
         self.trajectories = []
         self.dataset = []
         self.mask_dataset = []
@@ -99,7 +98,7 @@ class ALPHAZERO(Learning_Agent):
         
         return action.item(), {"action_probability": policy_values_softmax[0][action],
             "action_log_probability":torch.log_softmax(policy_values_logits,dim=1)[0][action],
-            "logits": policy_values_logits, "probability_vector": policy_values_softmax, "state_value":state_value}
+            "logits": policy_values_logits[0], "probability_vector": policy_values_softmax[0], "state_value":state_value[0]}
 
 
     """""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
@@ -118,11 +117,11 @@ class ALPHAZERO(Learning_Agent):
                 batch_x = torch.FloatTensor(episode.episode_observations).to(torch.device("cuda" if torch.cuda.is_available() else "cpu"))
                 self.network.load_state(batch_x)
                 loss_policy_on_tree = self.learn_policy_on_tree(episode)
-                loss_value_on_tree = self.learn_value_on_tree(episode)
+                #loss_value_on_tree = self.learn_value_on_tree(episode)
                 #loss_policy_on_trajectory = self.learn_policy_on_trajectory_reinforce(episode)
-                #loss_value_on_trajectory = self.learn_value_on_trajectory(episode)
+                loss_value_on_trajectory = self.learn_value_on_trajectory(episode)
                 #! ADD TOTAL LOSS
-                total_loss = loss_value_on_tree
+                total_loss = loss_policy_on_tree + loss_value_on_trajectory
                 self.take_optimisation_step(self.optimizer1,self.network,total_loss, self.config.get_gradient_clipping_norm())
 
                
@@ -140,7 +139,7 @@ class ALPHAZERO(Learning_Agent):
         masks = torch.Tensor(episode.episode_masks)
         network_policy_values_logits = self.network.get_policy_values(apply_softmax=False,mask=masks)
         network_log_policy_values = torch.log_softmax(network_policy_values_logits,dim=1).reshape(-1)
-        target_policy_values = torch.FloatTensor(episode.episode_expert_action_probability_vector).reshape(-1)
+        target_policy_values =torch.cat(episode.episode_expert_action_probability_vector)
         loss = -1 * target_policy_values.dot(network_log_policy_values)
         return loss
 
@@ -286,8 +285,8 @@ class ALPHAZERO(Learning_Agent):
         #! expand policy
         #tree_expansion = One_Successor_Rollout()
         #tree_expansion = Network_One_Successor_Rollout(self.network,self.device)
-        #tree_expansion = Network_Policy_Value(self.network,self.device)
-        tree_expansion = Normal_With_Network_Estimation(self.network,self.device)
+        tree_expansion = Network_Policy_Value(self.network,self.device)
+        #tree_expansion = Normal_With_Network_Estimation(self.network,self.device)
 
         agent = Tree_Search_Iteration(env,playout_iterations=n_rounds,tree_policy=tree_policy,tree_expansion=tree_expansion,search_expansion_iterations=k)
         action_probs, info = agent.play(observation=observation)
@@ -298,7 +297,7 @@ class ALPHAZERO(Learning_Agent):
         #action = action_distribution.sample()
         action = action_probs.argmax()
 
-        return action, action_probs, info["root_probability"]
+        return action, torch.FloatTensor(action_probs), torch.FloatTensor(info["root_probability"])
                 
     
     def astar_minimax(self,observation):
@@ -333,12 +332,12 @@ class ALPHAZERO(Learning_Agent):
             with torch.no_grad():
                 state = torch.from_numpy(observation).float().unsqueeze(0).to(self.device)
                 self.network.load_state(state)
-                new_net_vector = self.network.get_policy_values(apply_softmax=True,mask=torch.tensor(mask).unsqueeze(0))
-                new_state_value = self.network.get_state_value()
+                new_net_vector = self.network.get_policy_values(apply_softmax=True,mask=torch.tensor(mask).unsqueeze(0))[0]
+                new_state_value = self.network.get_state_value()[0]
 
             expert_vector_string = ["{0}=>{1:.4f}".format(i,expert_vector[i]) for i in range(len(expert_vector))]
-            net_vector_string = ["{0}=>{1:.4f}".format(i,net_vector[0][i]) for i in range(len(net_vector[0]))]
-            new_net_vector_string = ["{0}=>{1:.4f}".format(i,new_net_vector[0][i]) for i in range(len(new_net_vector[0]))]
+            net_vector_string = ["{0}=>{1:.4f}".format(i,net_vector[i]) for i in range(len(net_vector))]
+            new_net_vector_string = ["{0}=>{1:.4f}".format(i,new_net_vector[i]) for i in range(len(new_net_vector))]
             modified_observation = observation[0] + -1*observation[1]
             
 
@@ -359,7 +358,7 @@ class ALPHAZERO(Learning_Agent):
             formatted_text = text.format(
                 reward,
                 action, expert_action.item(), net_action,
-                net_vector[0,action].item(), new_net_vector[0,action].item(),
+                net_vector[action].item(), new_net_vector[action].item(),
                 expert_state_value.item(),net_state_value.item(), new_state_value.item(),
                 expert_vector_string,
                 net_vector_string,
