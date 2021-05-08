@@ -12,10 +12,10 @@ import numpy as np
 import math
 from utilities.data_structures.Replay_Buffer import Replay_Buffer
 ''' '''
-from agents.STI.Search_Evaluation_Function import UCT, PUCT
+from agents.STI.Evaluation_Strategy import UCT, PUCT
 from agents.STI.Tree_Policy import Tree_Policy, Greedy_DFS, Adversarial_Greedy_Best_First_Search, Local_Greedy_DFS_With_Global_Restart
 from agents.STI.Expansion_Strategy import Expansion_Strategy, One_Successor_Rollout, Network_One_Successor_Rollout
-from agents.STI.Astar_minimax import Astar_minimax
+
 
 
 class Config_DAGGER(Config_Learning_Agent):

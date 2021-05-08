@@ -5,13 +5,33 @@ from numpy import string_
 from environments.core.Players import Players, Player, IN_GAME, TERMINAL
 from collections import OrderedDict
 
-
 '''
+    Special Attributes
+                    ________
+                   |        |   parent_reward of root is always 0.
+                   |  NODE  |
+                   |________|
+                  /          \    
+         ________/            \_______      parent_reward  -> reward from the prespective of parent's node
+        |        |           |        |     number_of_visits  -> total number of visits
+        |  SUCC1 |           |  SUCC2 |     total_reward  -> Sum childs reward + childs rest path reward
+        |________|           |________|     temp_rest_path_reward  -> temporary variable to store reward gotten in path
+                                  \
+                                  /
+                                  \
+                                (...)    path until terminal node
+                                  /
+                                  \
+                              ________
+                             |TERMINAL|
+                             |  NODE  |
+                             |________|    temp_future_total_reward is always 0
+
 This node is made specifically to search in environments using trees (one parent node)
 '''
 #! change name to Environment_Node
 class Search_Node():
-    def __init__(self,environment_interface,observation,parent_node=None,parent_action=None,terminal=None,legal_actions=None):
+    def __init__(self,environment_interface,observation,parent_node=None,parent_action=None,parent_reward=0,terminal=None,legal_actions=None):
         self.environment = environment_interface
         self.observation = observation
         self.parent_node = parent_node
@@ -22,6 +42,11 @@ class Search_Node():
         self.all_legal_actions = list(legal_actions) if legal_actions is not None else list(self.environment.get_legal_actions(observation=observation))
         self.non_expanded_legal_actions = copy.deepcopy(self.all_legal_actions)
 
+        self.parent_reward = parent_reward
+        
+
+    
+
 
     """ 
     Find Methods
@@ -30,7 +55,7 @@ class Search_Node():
     def find_successor_after_action(self,action):
         new_observation, reward , done , new_game_info = self.environment.step(action,observation=self.observation)
         legal_actions = self.environment.get_legal_actions(observation=new_observation)
-        return Search_Node(self.environment,new_observation, parent_node = self,parent_action=action,terminal = done,legal_actions=legal_actions)
+        return Search_Node(self.environment,new_observation, parent_node=self,parent_action=action,parent_reward=reward,terminal=done,legal_actions=legal_actions)
 
     def find_random_unexpanded_successor(self):
         random_idx = random.randint(0,len(self.non_expanded_legal_actions)-1)
@@ -106,7 +131,7 @@ class Search_Node():
 
     '''
     Getters about the state:
-        - get_current_player: returns a Player class
+        - get_player: returns a Player class
         - get_current_observation: observation of environment in the node's state
         - render: ...
         - is_terminal: checks if state of node is terminal
@@ -115,7 +140,7 @@ class Search_Node():
         - get_mask: get np.array or list with 1s in possible legal actions and 0s in impossible legal actions from this node's state
         - get_parent_action: actions that resulted in this node from parent
     '''
-    def get_current_player(self):
+    def get_player(self):
         return self.environment.get_current_player(observation=self.observation)
 
     def get_current_observation(self):

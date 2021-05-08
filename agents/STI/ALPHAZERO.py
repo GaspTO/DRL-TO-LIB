@@ -12,10 +12,15 @@ import math
 import copy
 from utilities.data_structures.Replay_Buffer import Replay_Buffer
 ''' '''
-from agents.STI.Search_Evaluation_Function import UCT, PUCT
-from agents.STI.Tree_Policy import Tree_Policy, Greedy_DFS, Adversarial_Greedy_Best_First_Search, Local_Greedy_DFS_With_Global_Restart
+from agents.STI.Score_Strategy import *
+from agents.STI.Evaluation_Strategy import *
+from agents.STI.Tree_Policy import *
 from agents.STI.Expansion_Strategy import *
-from agents.STI.Astar_minimax import Astar_minimax
+from agents.STI.Backup_Strategy import *
+from agents.STI.Evaluation_Strategy import *
+from agents.STI.Search_Node import *
+
+
 
 
 
@@ -41,7 +46,7 @@ class ALPHAZERO(Learning_Agent):
 
         self.memory_size = 500 #1
         self.size_of_batch = 6
-        self.update_on_episode = 100 #1
+        self.update_on_episode = 100000 #1
         self.learn_epochs = 8 #1
 
 
@@ -65,8 +70,9 @@ class ALPHAZERO(Learning_Agent):
         #self.expert_action,self.expert_action_tree_probs = self.mcts_simple_rl(self.observation,25,1.0)
         #self.stri_action = self.mcts_original(self.observation,100,1.0)
         #self.expert_action = self.astar_minimax(self.observation)
-        #! 100
+        #! 
         self.expert_action, self.expert_action_probability_vector, self.expert_state_value = self.try_expert(self.observation,100,1,1.0)
+        #self.expert_action, self.expert_action_probability_vector, self.expert_state_value = self.try_expert(self.observation,100,1,1.0)
         ''' '''
 
         self.net_action, info = self.pick_action()
@@ -270,7 +276,52 @@ class ALPHAZERO(Learning_Agent):
         return action
     '''
 
-    def try_expert(self,observation,n_rounds,k,exploration_weight):
+    def try_expert(self,observation,iterations,k,exploration_weight):
+        env = self.environment.environment
+
+        #* score functions
+        tree_score = Visit_Count_Score(temperature=1)
+        #tree_score = Win_Ratio_Score()
+
+        #* eval functions
+        tree_evaluation = UCT(exploration_weight=1.0)
+        #tree_evaluation = PUCT(exploration_weight=2.0)
+
+        #* expand policy
+        #! expand policy
+        tree_expansion = One_Successor_Rollout()
+        #tree_expansion = Network_One_Successor_Rollout(self.network,self.device)
+        #tree_expansion = Network_Policy_Value(self.network,self.device)
+        #tree_expansion = Normal_With_Network_Estimation(self.network,self.device)
+
+        #* backup
+        tree_backup = Backup_W_N_one_successor()
+
+        #* tree policy 
+        tree_policy = Greedy_DFS_Recursive(self.environment.environment,iterations,
+                                        score_st=tree_score,
+                                        evaluation_st=tree_evaluation,
+                                        expansion_st=tree_expansion,
+                                        backup_st=tree_backup)
+
+        #!
+        #random.setstate((3,tuple(range(625)),None))
+        action_probs, info = tree_policy.play(observation)
+        root = info["root_node"]
+        action = action_probs.argmax()
+        #print(action_probs)
+        return action, torch.FloatTensor(action_probs), torch.tensor([0.0])
+        
+
+        #!sampling
+        #action_distribution = Categorical(torch.tensor(action_probs)) # this creates a distribution to sample from
+        #action = action_distribution.sample()
+        #action = action_probs.argmax()
+
+        #return action, torch.FloatTensor(action_probs), torch.FloatTensor(info["root_probability"])
+                
+    
+    def try_expert_original(self,observation,n_rounds,k,exploration_weight):
         env = self.environment.environment
         #* eval functions
         eval_fn = UCT()
@@ -298,15 +349,6 @@ class ALPHAZERO(Learning_Agent):
         action = action_probs.argmax()
 
         return action, torch.FloatTensor(action_probs), torch.FloatTensor(info["root_probability"])
-                
-    
-    def astar_minimax(self,observation):
-        env = self.environment.environment
-        eval_fn = PUCT()
-        agent = Astar_minimax(env,self.network,self.device,eval_fn)
-        act = agent.play(observation=observation)
-        return act
-    
 
 
 

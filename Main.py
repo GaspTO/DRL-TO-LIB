@@ -51,7 +51,7 @@ STI
 '''
 #from agents.STI.Tree_Search_Iteration import Tree_Search_Iteration
 from agents.STI.NEW_DAGGER import NEW_DAGGER
-from agents.STI.NEW_DAGGER_REINFORCE import NEW_DAGGER_REINFORCE
+
 from agents.STI.ALPHAZERO import ALPHAZERO
 '''
 ASTAR
@@ -156,7 +156,7 @@ config_reinforce.environment = Custom_Simple_Playground(config.environment,play_
 
 
 #agent = DAGGER(config_reinforce)
-agent = NEW_DAGGER(config_reinforce)
+agent = NEW_DAGGER(config_reinforce)   
 agent = ALPHAZERO(config_reinforce)
 #agent = NEW_DAGGER_REINFORCE(config_reinforce) #! <---
 #agent = ASTAR_DAGGER(config_reinforce)

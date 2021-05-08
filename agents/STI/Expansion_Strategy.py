@@ -7,9 +7,12 @@ class Expansion_Strategy:
     def __init__(self):
         pass
 
-    def update_tree(self,node):
+    ''' expand one or more successors of node
+    and updates node's attributes like number of visits '''
+    def expand(self,node):
         pass
 
+    ''' this method will be used externally to initialize root '''
     def initialize_node_attributes(self,node):
         pass
 
@@ -25,66 +28,61 @@ class One_Successor_Rollout(Expansion_Strategy):
     '''
         Uses node.N, node.W
     '''
-    def __init__(self,win_points=0,loss_points=-1,draw_points=-0.5):
-        self.win_points = win_points
-        self.loss_points = loss_points
-        self.draw_points = draw_points
+    def __init__(self):
         super().__init__()
 
     def initialize_node_attributes(self,node):
         node.N = 0
-        node.W = 0
+        node.W = 0 #* total subtree_total_R + reward from parent to node - in prespective of node
+        node.subtree_total_R = 0 #*value of all subtrees in prespective from node
+        #* needs get_parent_reward()
 
-    def update_tree(self,node):
+    ''' Expands current node
+    it has to add visits and W to random successor chosen
+    since that is invisible to the search '''
+    def expand(self,node):
         if not node.is_terminal():
-            succ_node = self._expand_new(node)
-            winner_player = self._simulate_from_random_node(succ_node)
-            print("[" + str(succ_node.get_parent_action()) + "=" + str(winner_player==succ_node.get_current_player())+ "])",end="")
-            self._backpropagate(succ_node, winner_player)
+            successor = self._choose_random_successor(node)
+            successor.subtree_total_R = successor.subtree_total_R + \
+                                        self._simulate_from_random_node(successor)
+          
+            if successor.get_player() == node.get_player():
+                raise ValueError("Successor should have different player")
+                delta_W = successor.subtree_total_R +  successor.get_parent_reward()
+                successor.W += delta_W
+                node.subtree_total_R += delta_W
+            else:
+                delta_W = successor.subtree_total_R +  -1*successor.get_parent_reward()
+                successor.W += delta_W
+                node.subtree_total_R += -1*delta_W
+            
+            successor.N += 1
+            successor.subtree_total_R = 0
         else:
-            winner_player = node.get_winner_player()
-            self._backpropagate(node,winner_player)
+            raise ValueError("shouldn't be terminal")
 
-    def _expand_new(self,node):
+
+    def _choose_random_successor(self,node):
         #* expands random node
         succ_node = node.expand_random_successor()
-        succ_node.belongs_to_tree = True
         self.initialize_node_attributes(succ_node)
         return succ_node
         
-
+    #* returns the value of subtree total reward from the prespective of succ_node
     def _simulate_from_random_node(self,succ_node):
+        def get_rollout_reward_from_succ_prespective(succ_node,rollout_node):
+            if rollout_node.get_player() != succ_node.get_parent_node().get_player():
+                return -1 * rollout_node.get_parent_reward()
+            else:
+                 return rollout_node.get_parent_reward()
+
         #* estimation: random rolllout
         rollout_node = succ_node
+        subtree_total_R = 0.
         while not rollout_node.is_terminal():
             rollout_node = rollout_node.find_random_unexpanded_successor()
-            rollout_node.belongs_to_tree = False
-        winner_player = rollout_node.get_winner_player()
-        return winner_player
-
-    def _backpropagate(self,node,winner,debug=False):
-        while not node.is_root():
-            self._update_statistic(node,winner)
-            node = node.get_parent_node()
-        assert node.is_root()
-
-        '''debug'''
-        if(node.get_current_player() == winner and debug): print(" win",end=" ")
-        elif TIE_PLAYER_NUMBER == winner.get_number() and debug:
-            print("draw")
-        elif debug: print(" lose",end=" ")
-
-        self._update_statistic(node,winner)
-
-    def _update_statistic(self,node,winner):
-            if node.belongs_to_tree:
-                node.N += 1
-                if TIE_PLAYER_NUMBER == winner.get_number():
-                    node.W += self.draw_points
-                elif node.get_current_player().get_number() == winner.get_number():
-                    node.W += self.win_points
-                else:
-                    node.W += self.loss_points
+            subtree_total_R += get_rollout_reward_from_succ_prespective(succ_node,rollout_node)
+        return subtree_total_R
 
 
 
@@ -115,6 +113,7 @@ class Network_One_Successor_Rollout(One_Successor_Rollout):
         node.N = 0
         node.W = 0
         node.P = 0
+    
 
     def _expand_new(self,node):
         ''' expand all and adds node.P '''

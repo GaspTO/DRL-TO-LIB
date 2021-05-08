@@ -1,23 +1,88 @@
+from agents.STI.Expansion_Strategy import Expansion_Strategy
 from math import sqrt, log
 import heapq
-from agents.STI.Search_Evaluation_Function import UCT, PUCT
-
- 
+from agents.STI.Evaluation_Strategy import UCT, PUCT
+from agents.STI.Search_Node import Search_Node
+import numpy as np
 
 
 """ Tree Policies - are the search policies in Search Iteration """
 class Tree_Policy:
-    """
-    needs to use self.frontier
-    """
-    def __init__(self):
-        pass
+    def play(self,observation=None,debug=False):
+        raise NotImplementedError
 
-    def forward(self):
-        pass
 
-    def reset(self):
-        pass
+'''
+GREEDY_DFS - for classic Monte Carlo Tree Search 
+'''
+class Greedy_DFS_Recursive(Tree_Policy):
+    def __init__(self,environment,iterations,score_st,evaluation_st,expansion_st,backup_st):
+        super().__init__()
+        self.environment = environment
+        self.iterations = iterations
+        self.score_st = score_st
+        self.evaluation_st = evaluation_st
+        self.expansion_st = expansion_st
+        self.backup_st = backup_st
+        #* initialize root
+
+    def play(self,observation=None,debug=False):
+        if(observation is None): observation = self.environment.get_current_observation()
+        self.root = Search_Node(self.environment,observation)
+        self.expansion_st.initialize_node_attributes(self.root)
+        for i in range(self.iterations):
+            self._search(self.root,debug)
+            #print(self.root.W)
+        if debug: self._validate(self.root)
+        return self._get_action_probabilities(self.root), {"root_node":self.root}
+ 
+    def _search(self,node,debug=False):
+        if not node.is_completely_expanded() and not node.is_terminal():
+            self.expansion_st.expand(node)
+        elif not node.is_terminal():
+            next_node = max(node.get_successors(),key=self.evaluation_st.evaluate)
+            self._search(next_node,debug)
+        self.backup_st.update(node)
+       
+    def _get_action_probabilities(self,node):
+        #the length of successors is not always the action_size 'cause invalid actions don't become successors
+        action_probs = np.zeros(self.environment.get_action_size()) 
+        for n in self.root.get_successors():
+            action_probs[n.parent_action] = self.score_st.summarize(n)
+        # if a vector is full of zeros 
+        if(action_probs.sum() == 0.):
+            for n in self.root.get_successors():
+                action_probs[n.parent_action] = 1/len(self.root.get_successors()) 
+        else:
+            action_probs = action_probs/action_probs.sum()
+            if len(np.where(action_probs < 0)[0]) != 0:
+                raise ValueError("Negative probability in vector")
+        return action_probs
+        
+
+    def _validate(self,node):
+        print(node.depth)
+        N = node.N
+        W = node.W
+        for n in node.get_successors():
+            N -= n.N
+            W += n.W 
+            self._validate(n)
+        if len(node.get_successors()) != 0:
+            if (node == self.root and N != 0) or (node != self.root and N != 1):
+                raise ValueError("Number of Root Visits should equal")
+            if (node == self.root and W != 0):
+                raise ValueError("Number of W should equal")
+        else:
+            if N != 1:
+                raise ValueError("Visits in leaf is 1")
+
+
+#!
+
+    
+
+
 
 
 '''
