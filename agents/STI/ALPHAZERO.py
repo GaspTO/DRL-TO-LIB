@@ -1,7 +1,6 @@
 from random import shuffle
 import agents.tree_agents.MCTS_Agents as MCTS_Agents
 from agents.Learning_Agent import Learning_Agent, Config_Learning_Agent
-from agents.STI.Tree_Search_Iteration import Tree_Search_Iteration
 from torch.distributions import Categorical
 from collections import namedtuple
 from time import sleep, time
@@ -307,48 +306,17 @@ class ALPHAZERO(Learning_Agent):
         #!
         #random.setstate((3,tuple(range(625)),None))
         action_probs, info = tree_policy.play(observation)
-        root = info["root_node"]
-        action = action_probs.argmax()
-        #print(action_probs)
-        return action, torch.FloatTensor(action_probs), torch.tensor([0.0])
-        
+        root_node = info["root_node"]
 
         #!sampling
         #action_distribution = Categorical(torch.tensor(action_probs)) # this creates a distribution to sample from
         #action = action_distribution.sample()
-        #action = action_probs.argmax()
+        action = action_probs.argmax()
 
-        #return action, torch.FloatTensor(action_probs), torch.FloatTensor(info["root_probability"])
-                
+        return action, torch.FloatTensor(action_probs), torch.tensor([root_node.W/root_node.N])
+        
+
     
-    def try_expert_original(self,observation,n_rounds,k,exploration_weight):
-        env = self.environment.environment
-        #* eval functions
-        eval_fn = UCT()
-        #eval_fn = PUCT()
-
-        #* tree policy 
-        tree_policy =  Greedy_DFS(evaluation_fn=eval_fn)
-        #tree_policy = Adversarial_Greedy_Best_First_Search(evaluation_fn=eval_fn)
-        #tree_policy = Local_Greedy_DFS_With_Global_Restart(evaluation_fn=eval_fn)
-        
-        #* expand policy
-        #! expand policy
-        #tree_expansion = One_Successor_Rollout()
-        #tree_expansion = Network_One_Successor_Rollout(self.network,self.device)
-        tree_expansion = Network_Policy_Value(self.network,self.device)
-        #tree_expansion = Normal_With_Network_Estimation(self.network,self.device)
-
-        agent = Tree_Search_Iteration(env,playout_iterations=n_rounds,tree_policy=tree_policy,tree_expansion=tree_expansion,search_expansion_iterations=k)
-        action_probs, info = agent.play(observation=observation)
-        #action_rl = self.mcts_simple_rl(observation,100,1.0)
-
-        #!sampling
-        #action_distribution = Categorical(torch.tensor(action_probs)) # this creates a distribution to sample from
-        #action = action_distribution.sample()
-        action = action_probs.argmax()
-
-        return action, torch.FloatTensor(action_probs), torch.FloatTensor(info["root_probability"])
 
 
 

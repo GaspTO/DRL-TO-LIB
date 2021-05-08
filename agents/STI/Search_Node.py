@@ -41,8 +41,12 @@ class Search_Node():
         self.successors = dict()
         self.all_legal_actions = list(legal_actions) if legal_actions is not None else list(self.environment.get_legal_actions(observation=observation))
         self.non_expanded_legal_actions = copy.deepcopy(self.all_legal_actions)
-
         self.parent_reward = parent_reward
+        #*helpful
+        self.N = 0
+        self.W = 0
+        self.delta_subtree_R = 0
+        self.P = 0
         
 
     

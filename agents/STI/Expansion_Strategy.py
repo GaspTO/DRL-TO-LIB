@@ -33,8 +33,8 @@ class One_Successor_Rollout(Expansion_Strategy):
 
     def initialize_node_attributes(self,node):
         node.N = 0
-        node.W = 0 #* total subtree_total_R + reward from parent to node - in prespective of node
-        node.subtree_total_R = 0 #*value of all subtrees in prespective from node
+        node.W = 0 #* total delta_subtree_R + reward from parent to node - in prespective of node
+        node.delta_subtree_R = 0 #*value of all subtrees in prespective from node
         #* needs get_parent_reward()
 
     ''' Expands current node
@@ -43,24 +43,10 @@ class One_Successor_Rollout(Expansion_Strategy):
     def expand(self,node):
         if not node.is_terminal():
             successor = self._choose_random_successor(node)
-            successor.subtree_total_R = successor.subtree_total_R + \
-                                        self._simulate_from_random_node(successor)
-          
-            if successor.get_player() == node.get_player():
-                raise ValueError("Successor should have different player")
-                delta_W = successor.subtree_total_R +  successor.get_parent_reward()
-                successor.W += delta_W
-                node.subtree_total_R += delta_W
-            else:
-                delta_W = successor.subtree_total_R +  -1*successor.get_parent_reward()
-                successor.W += delta_W
-                node.subtree_total_R += -1*delta_W
-            
-            successor.N += 1
-            successor.subtree_total_R = 0
+            successor.delta_subtree_R += self._estimate_node(successor)
+            self._backup_successor_node(successor)
         else:
             raise ValueError("shouldn't be terminal")
-
 
     def _choose_random_successor(self,node):
         #* expands random node
@@ -69,7 +55,7 @@ class One_Successor_Rollout(Expansion_Strategy):
         return succ_node
         
     #* returns the value of subtree total reward from the prespective of succ_node
-    def _simulate_from_random_node(self,succ_node):
+    def _estimate_node(self,succ_node):
         def get_rollout_reward_from_succ_prespective(succ_node,rollout_node):
             if rollout_node.get_player() != succ_node.get_parent_node().get_player():
                 return -1 * rollout_node.get_parent_reward()
@@ -78,13 +64,27 @@ class One_Successor_Rollout(Expansion_Strategy):
 
         #* estimation: random rolllout
         rollout_node = succ_node
-        subtree_total_R = 0.
+        delta_subtree_R = 0.
         while not rollout_node.is_terminal():
             rollout_node = rollout_node.find_random_unexpanded_successor()
-            subtree_total_R += get_rollout_reward_from_succ_prespective(succ_node,rollout_node)
-        return subtree_total_R
+            delta_subtree_R += get_rollout_reward_from_succ_prespective(succ_node,rollout_node)
+        return delta_subtree_R
 
-
+    def _backup_successor_node(self,succ_node):
+        parent_node = succ_node.get_parent_node()
+        assert parent_node is not None
+        if succ_node.get_player() == parent_node.get_player():
+                raise ValueError("Successor should have different player")
+                delta_W = successor.delta_subtree_R +  successor.get_parent_reward()
+                successor.W += delta_W
+                node.delta_subtree_R += delta_W
+        else:
+            delta_W = succ_node.delta_subtree_R +  -1*succ_node.get_parent_reward()
+            succ_node.W += delta_W
+            parent_node.delta_subtree_R += -1*delta_W
+            
+        succ_node.N += 1
+        succ_node.delta_subtree_R = 0
 
 
 
@@ -100,22 +100,21 @@ class Network_One_Successor_Rollout(One_Successor_Rollout):
         self.network = network
         self.device = device
 
-    def update_tree(self,node):
-        if not node.is_terminal():
-            succ_node = self._expand_new(node)
-            winner_player = self._simulate_from_random_node(succ_node)
-            self._backpropagate(succ_node, winner_player)
-        else:
-            winner_player = node.get_winner_player()
-            self._backpropagate(node,winner_player)
-
     def initialize_node_attributes(self,node):
-        node.N = 0
-        node.W = 0
+        super().initialize_node_attributes(node)
         node.P = 0
-    
 
-    def _expand_new(self,node):
+
+    def expand(self,node):
+        if not node.is_terminal():
+            successor = self._initialize_all_successors_and_chooses_random_node(node)
+            successor.delta_subtree_R = successor.delta_subtree_R + \
+                                        self._simulate_from_random_node(successor)
+            self._backup_successor_node(successor)
+        else:
+            raise ValueError("shouldn't be terminal")
+            
+    def _initialize_all_successors_and_chooses_random_node(self,node):
         ''' expand all and adds node.P '''
         nodes = node.expand_rest_successors()
         current_board = node.get_current_observation()
@@ -142,20 +141,19 @@ class Network_Policy_Value(Expansion_Strategy):
         self.network = network
         self.device = device
 
-    def update_tree(self,node):
-        if not node.is_terminal():
-            leaf_node, leaf_player, leaf_points = self._expand(node)
-            self._backpropagate(leaf_node, leaf_player,leaf_points)
-        else:
-            leaf_node, leaf_player, leaf_points  = self._evaluate_terminal_state(node)
-            self._backpropagate(leaf_node, leaf_player,leaf_points)
-
     def initialize_node_attributes(self,node):
         node.N = 0
         node.W = 0
+        node.delta_subtree_R = 0
         node.P = 0
 
-    def _expand(self,node):
+    def expand(self,node):
+        if not node.is_terminal():
+            self._initialize_policy_on_successors_and_estimate_node_value(node)
+        else:
+            raise ValueError("shouldn't be terminal")
+
+    def _initialize_policy_on_successors_and_estimate_node_value(self,node):
         ''' expand all and adds node.p '''
         if node.is_terminal():
             raise ValueError("Should not be terminal") 
@@ -173,37 +171,10 @@ class Network_Policy_Value(Expansion_Strategy):
             node_child.P = policy_values[0][node_child.parent_action].item()
         return node, node.get_current_player(), state_estimate
 
-    def _evaluate_terminal_state(self,node):
-        if not node.is_terminal():
-            raise ValueError("Should be terminal") 
-
-        winner = node.get_winner_player()
-        #! rewards are hardcoded
-        if TIE_PLAYER_NUMBER == winner.get_number():
-            points = -0.5 #! debug 0
-        elif node.get_current_player().get_number() == winner.get_number():
-            points = 0 #! 1
-        else:
-            points = -1
-        return node,node.get_current_player(),points
-
-    def _backpropagate(self,node,leaf_player,leaf_points):
-        while not node.is_root():
-            self._update_statistic(node,leaf_player,leaf_points)
-            node = node.get_parent_node()
-        self._update_statistic(node,leaf_player,leaf_points)
-
-    def _update_statistic(self,node,player,points):
-        node.N += 1
-        if node.get_current_player() == player:
-            node.W += points
-        else:
-            node.W -= points
 
 
-        
 
-class Normal_With_Network_Estimation(Expansion_Strategy):
+class Normal_With_Network_Estimation(One_Successor_Rollout):
     '''
         Uses node.N, node.W
     '''
@@ -212,55 +183,40 @@ class Normal_With_Network_Estimation(Expansion_Strategy):
         self.network = network
         self.device = device
 
-    def update_tree(self,node):
+    def expand(self,node):
         if not node.is_terminal():
-            leaf_node, leaf_player, leaf_points = self._expand(node)
-            self._backpropagate(leaf_node, leaf_player,leaf_points)
+            successor = self._choose_random_successor(node)
+            successor.delta_subtree_R += self._estimate_successor(successor)
+            self._backup_successor_node(successor)
         else:
-            leaf_node, leaf_player, leaf_points  = self._evaluate_terminal_state(node)
-            self._backpropagate(leaf_node, leaf_player,leaf_points)
+            raise ValueError("shouldn't be terminal")
 
     def initialize_node_attributes(self,node):
         node.N = 0
         node.W = 0
 
-    def _expand(self,node):
+    def _estimate_node(self,node):
         if node.is_terminal():
             raise ValueError("Should not be terminal") 
-        succ_nodes = node.expand_rest_successors()
         current_board = node.get_current_observation()
         x = torch.from_numpy(current_board).float().unsqueeze(0).to(self.device)
         with torch.no_grad():
             self.network.load_state(x)
-            state_estimate = self.network.get_state_value()
-            node.W = state_estimate #* create node W
-        for node_child in succ_nodes:
-            self.initialize_node_attributes(node_child)
-        return node, node.get_current_player(), state_estimate
+            estimate = self.network.get_state_value()
+        return estimate
 
-    def _evaluate_terminal_state(self,node):
-        if not node.is_terminal():
-            raise ValueError("Should be terminal") 
-
-        winner = node.get_winner_player()
-        #! rewards are hardcoded
-        if TIE_PLAYER_NUMBER == winner.get_number():
-            points = -0.5 #! debug should be 0
-        elif node.get_current_player().get_number() == winner.get_number():
-            points = 0 #! debug should be 1
+    def _backup_successor_node(self,succ_node):
+        parent_node = succ_node.get_parent_node()
+        assert parent_node is not None
+        if succ_node.get_player() == parent_node.get_player():
+                raise ValueError("Successor should have different player")
+                delta_W = successor.delta_subtree_R +  successor.get_parent_reward()
+                successor.W += delta_W
+                node.delta_subtree_R += delta_W
         else:
-            points = -1#....
-        return node,node.get_current_player(),points
-
-    def _backpropagate(self,node,leaf_player,leaf_points):
-        while not node.is_root():
-            self._update_statistic(node,leaf_player,leaf_points)
-            node = node.get_parent_node()
-        self._update_statistic(node,leaf_player,leaf_points)
-
-    def _update_statistic(self,node,player,points):
-        node.N += 1
-        if node.get_current_player() == player:
-            node.W += points
-        else:
-            node.W -= points
+            delta_W = succ_node.delta_subtree_R +  -1*succ_node.get_parent_reward()
+            succ_node.W += delta_W
+            parent_node.delta_subtree_R += -1*delta_W
+            
+        succ_node.N += 1
+        succ_node.delta_subtree_R = 0
