@@ -31,6 +31,32 @@ class UCT(Evaluation_Strategy):
         Q = self.Q(node)
         return U + Q
 
+
+class UCT_P(Evaluation_Strategy):
+    '''
+    NEEDS:
+        node.num_chosen_by_parent
+        node.num_losses
+        node.num_wins
+        node.num_draws
+    '''
+    def __init__(self,exploration_weight=1.0):
+        self.exploration_weight = exploration_weight
+
+    ''' exploration '''
+    def U(self,node):
+        return self.exploration_weight * node.P * sqrt(self.log_N_vertex / (1 + node.N))
+
+    ''' exploitation '''
+    def Q(self,node):
+        return (-node.W) / (1 + node.N)
+
+    def evaluate(self,node):
+        self.log_N_vertex = log(node.get_parent_node().N)
+        U = self.U(node)
+        Q = self.Q(node)
+        return U + Q
+
 class PUCT(Evaluation_Strategy):
     '''
     NEEDS:

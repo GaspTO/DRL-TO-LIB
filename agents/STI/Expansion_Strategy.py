@@ -26,7 +26,8 @@ THEN A RANDOM ROLLOUT FROM IT IS USED TO ESTIMATE ITS VALUE
 '''
 class One_Successor_Rollout(Expansion_Strategy):
     '''
-        Uses node.N, node.W
+        NO POLICY BIAS.
+        EVERY expand CALL CREATES ONLY ONE SUCCESSOR, WHOSE NODE.W IS ESTIMATED BY A RANDOM ROLLOUT
     '''
     def __init__(self):
         super().__init__()
@@ -91,9 +92,10 @@ class One_Successor_Rollout(Expansion_Strategy):
 """
 THIS IS THE MCTS RL
 """
-class Network_One_Successor_Rollout(One_Successor_Rollout):
+class Network_Policy_One_Successor_Rollout(One_Successor_Rollout):
     '''
-        Uses node.N, node.W, node.P
+        NETWORK POLICY BIAS (NODE.P)
+        AFTER EXPANDING, CHOOSES ONE RANDOM NODE AND DOES RANDOM ROLLOUT TO ESTIMATE ITS VALUE
     '''
     def __init__(self,network,device):
         super().__init__()
@@ -109,74 +111,31 @@ class Network_One_Successor_Rollout(One_Successor_Rollout):
         if not node.is_terminal():
             successor = self._initialize_all_successors_and_chooses_random_node(node)
             successor.delta_subtree_R = successor.delta_subtree_R + \
-                                        self._simulate_from_random_node(successor)
+                                        self._estimate_node(successor) #estimates random by rollout
             self._backup_successor_node(successor)
         else:
             raise ValueError("shouldn't be terminal")
             
     def _initialize_all_successors_and_chooses_random_node(self,node):
         ''' expand all and adds node.P '''
-        nodes = node.expand_rest_successors()
+        child_nodes = node.expand_rest_successors()
         current_board = node.get_current_observation()
         x = torch.from_numpy(current_board).float().unsqueeze(0).to(self.device)
         with torch.no_grad():
             self.network.load_state(x)
             policy_values = self.network.get_policy_values(apply_softmax=True, mask=torch.tensor(node.get_mask()))
-        for node_child in nodes:
+        for node_child in child_nodes:
             self.initialize_node_attributes(node_child)
             node_child.P = policy_values[0][node_child.parent_action].item()
-            node_child.belongs_to_tree = True
-        random_idx = random.randint(0,len(nodes)-1)
-        return nodes[random_idx]
+        random_idx = random.randint(0,len(child_nodes)-1)
+        return child_nodes[random_idx]
 
 
 
-class Network_Policy_Value(Expansion_Strategy):
+class Network_Value(One_Successor_Rollout):
     '''
-        ALPHAZERO ONE
-        Uses node.N, node.W, node.P
-    '''
-    def __init__(self,network,device):
-        super().__init__()
-        self.network = network
-        self.device = device
-
-    def initialize_node_attributes(self,node):
-        node.N = 0
-        node.W = 0
-        node.delta_subtree_R = 0
-        node.P = 0
-
-    def expand(self,node):
-        if not node.is_terminal():
-            self._initialize_policy_on_successors_and_estimate_node_value(node)
-        else:
-            raise ValueError("shouldn't be terminal")
-
-    def _initialize_policy_on_successors_and_estimate_node_value(self,node):
-        ''' expand all and adds node.p '''
-        if node.is_terminal():
-            raise ValueError("Should not be terminal") 
-        succ_nodes = node.expand_rest_successors()
-        current_board = node.get_current_observation()
-        x = torch.from_numpy(current_board).float().unsqueeze(0).to(self.device)
-        with torch.no_grad():
-            self.network.load_state(x)
-            policy_values = self.network.get_policy_values(apply_softmax=True, mask=torch.tensor(node.get_mask()))
-            state_estimate = self.network.get_state_value()
-            assert node.W == 0
-            node.W = state_estimate #* create node W
-        for node_child in succ_nodes:
-            self.initialize_node_attributes(node_child)
-            node_child.P = policy_values[0][node_child.parent_action].item()
-        return node, node.get_current_player(), state_estimate
-
-
-
-
-class Normal_With_Network_Estimation(One_Successor_Rollout):
-    '''
-        Uses node.N, node.W
+        NO POLICY BIAS
+        STATE ESTIMATE IS DONE USING NETWORK
     '''
     def __init__(self,network,device):
         super().__init__()
@@ -186,7 +145,7 @@ class Normal_With_Network_Estimation(One_Successor_Rollout):
     def expand(self,node):
         if not node.is_terminal():
             successor = self._choose_random_successor(node)
-            successor.delta_subtree_R += self._estimate_successor(successor)
+            successor.delta_subtree_R += self._estimate_node(successor)
             self._backup_successor_node(successor)
         else:
             raise ValueError("shouldn't be terminal")
@@ -197,13 +156,14 @@ class Normal_With_Network_Estimation(One_Successor_Rollout):
 
     def _estimate_node(self,node):
         if node.is_terminal():
-            raise ValueError("Should not be terminal") 
-        current_board = node.get_current_observation()
-        x = torch.from_numpy(current_board).float().unsqueeze(0).to(self.device)
-        with torch.no_grad():
-            self.network.load_state(x)
-            estimate = self.network.get_state_value()
-        return estimate
+            return 0
+        else:
+            current_board = node.get_current_observation()
+            x = torch.from_numpy(current_board).float().unsqueeze(0).to(self.device)
+            with torch.no_grad():
+                self.network.load_state(x)
+                estimate = self.network.get_state_value()
+            return estimate
 
     def _backup_successor_node(self,succ_node):
         parent_node = succ_node.get_parent_node()
@@ -220,3 +180,47 @@ class Normal_With_Network_Estimation(One_Successor_Rollout):
             
         succ_node.N += 1
         succ_node.delta_subtree_R = 0
+
+
+
+class Network_Policy_Value(Expansion_Strategy):
+    '''
+        NETWORK POLICY BIAS (NODE.P)
+        EACH EXPANSION GENERATES ALL SUCCESSORS. EVERY SUCCESSOR RECEIVE A POLICY BIAS.
+        AND THE NODE EXPANDED RECEIVES A NODE.W ESTIMATION.
+    '''
+    def __init__(self,network,device):
+        super().__init__()
+        self.network = network
+        self.device = device
+
+    def initialize_node_attributes(self,node):
+        node.N = 0
+        node.W = 0
+        node.delta_subtree_R = 0
+        node.P = 0
+
+    def expand(self,node):
+        if not node.is_terminal():
+            node.delta_subtree_R += self._initialize_policy_on_successors_and_estimate_node_value(node)
+        else:
+            raise ValueError("shouldn't be terminal")
+
+    def _initialize_policy_on_successors_and_estimate_node_value(self,node):
+        if node.is_terminal():
+            return 0
+        else:
+            succ_nodes = node.expand_rest_successors()
+            current_board = node.get_current_observation()
+            x = torch.from_numpy(current_board).float().unsqueeze(0).to(self.device)
+            with torch.no_grad():
+                self.network.load_state(x)
+                policy_values = self.network.get_policy_values(apply_softmax=True, mask=torch.tensor(node.get_mask()))
+                state_estimate = self.network.get_state_value()
+            for node_child in succ_nodes:
+                self.initialize_node_attributes(node_child)
+                node_child.P = policy_values[0][node_child.parent_action].item()
+            return state_estimate
+
+
+

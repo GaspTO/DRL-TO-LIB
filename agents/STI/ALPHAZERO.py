@@ -45,7 +45,7 @@ class ALPHAZERO(Learning_Agent):
 
         self.memory_size = 500 #1
         self.size_of_batch = 6
-        self.update_on_episode = 100000 #1
+        self.update_on_episode = 100 #1
         self.learn_epochs = 8 #1
 
 
@@ -65,21 +65,10 @@ class ALPHAZERO(Learning_Agent):
     def step(self):
         self.start = time()
         ''' Agents '''
-        #self.expert_action = self.try_expert(self.observation,25,5,1.0)
-        #self.expert_action,self.expert_action_tree_probs = self.mcts_simple_rl(self.observation,25,1.0)
-        #self.stri_action = self.mcts_original(self.observation,100,1.0)
-        #self.expert_action = self.astar_minimax(self.observation)
-        #! 
         self.expert_action, self.expert_action_probability_vector, self.expert_state_value = self.try_expert(self.observation,100,1,1.0)
-        #self.expert_action, self.expert_action_probability_vector, self.expert_state_value = self.try_expert(self.observation,100,1,1.0)
-        ''' '''
-
         self.net_action, info = self.pick_action()
         self.net_action_probability_vector = info['probability_vector']
         self.net_state_value = info['state_value']
-        #self.action_log_probability = info["action_log_probability"]
-        #self.expert_action_probability = torch.softmax(info["logits"],dim=1)[0][torch.tensor([self.expert_action])]
-        #self.expert_action_log_probability = torch.log_softmax(info["logits"],dim=1)[0][torch.tensor([self.expert_action])]
         #! EXPERT
         self.action = self.expert_action
         self.next_observation, self.reward, self.done, _ = self.environment.step(self.action)
@@ -283,21 +272,22 @@ class ALPHAZERO(Learning_Agent):
         #tree_score = Win_Ratio_Score()
 
         #* eval functions
-        tree_evaluation = UCT(exploration_weight=1.0)
-        #tree_evaluation = PUCT(exploration_weight=2.0)
+        #tree_evaluation = UCT(exploration_weight=1.0)
+        tree_evaluation = UCT_P(exploration_weight=1.0)
+        #tree_evaluation = PUCT(exploration_weight=1.0)
 
         #* expand policy
         #! expand policy
-        tree_expansion = One_Successor_Rollout()
-        #tree_expansion = Network_One_Successor_Rollout(self.network,self.device)
-        #tree_expansion = Network_Policy_Value(self.network,self.device)
-        #tree_expansion = Normal_With_Network_Estimation(self.network,self.device)
+        #tree_expansion = One_Successor_Rollout()
+        #tree_expansion = Network_Value(self.network,self.device)
+        tree_expansion = Network_Policy_Value(self.network,self.device)
+        #tree_expansion = Network_Policy_One_Successor_Rollout(self.network,self.device)
 
         #* backup
         tree_backup = Backup_W_N_one_successor()
 
         #* tree policy 
-        tree_policy = Greedy_DFS_Recursive(self.environment.environment,iterations,
+        tree_policy = Greedy_DFS_Recursive(env,iterations,
                                         score_st=tree_score,
                                         evaluation_st=tree_evaluation,
                                         expansion_st=tree_expansion,

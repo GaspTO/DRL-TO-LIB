@@ -32,8 +32,7 @@ class Greedy_DFS_Recursive(Tree_Policy):
         self.expansion_st.initialize_node_attributes(self.root)
         for i in range(self.iterations):
             self._search(self.root,debug)
-            print(self.root.W)
-        #self._validate(self.root)
+        if debug: self._validate(self.root)
         return self._get_action_probabilities(self.root), {"root_node":self.root}
  
     def _search(self,node,debug=False):
