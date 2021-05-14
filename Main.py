@@ -12,7 +12,7 @@ import random
 '''
 NEURAL NETWORK
 '''
-from agents.Neural_Agent import Policy_Value_MLP, Double_Policy_Value_MLP
+from agents.Neural_Agent import *
 
 '''
 Environments
@@ -91,7 +91,7 @@ config_Learning_Agent = Config_Learning_Agent(config)
 config_Learning_Agent.batch_size = 16
 config_Learning_Agent.gradient_clipping_norm = 0.7
 config_Learning_Agent.clip_rewards = False
-config_Learning_Agent.architecture =  Double_Policy_Value_MLP
+config_Learning_Agent.architecture =  Parallel_MLP
 config_Learning_Agent.input_dim = None 
 config_Learning_Agent.output_size = None
 config_Learning_Agent.is_mask_needed = True
@@ -159,7 +159,7 @@ agent = ALPHAZERO(config_reinforce)
 #agent = ASTAR_DAGGER(config_reinforce)
 torch.autograd.set_detect_anomaly(True)
 #config_reinforce.environment.add_agent(MCTS_Simple_RL_Agent(config_reinforce.environment.environment,n_iterations=100,network=agent.policy,device=agent.device))
-config_reinforce.environment.add_agent(MCTS_Search(config_reinforce.environment.environment,n_iterations=25))
+config_reinforce.environment.add_agent(MCTS_Search(config_reinforce.environment.environment,n_iterations=100))
 game_scores, rolling_scores, time_taken = agent.run_n_episodes(num_episodes=100000)
 #todo these algorithms don't put new tensors on gpu if asked
 #todo need to creat configs

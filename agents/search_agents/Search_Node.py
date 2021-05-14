@@ -36,13 +36,19 @@ class Search_Node():
         self.observation = observation
         self.parent_node = parent_node
         self.parent_action = parent_action
-        self.depth = 0 if parent_node is None else self.parent_node.depth + 1
+        self.parent_reward = parent_reward
+        self.depth = 0 if parent_node is None else self.parent_node.depth + 1    
         self.terminal = terminal if terminal != None else self.environment.is_terminal(observation=observation)
         self.successors = dict()
         self.all_legal_actions = list(legal_actions) if legal_actions is not None else list(self.environment.get_legal_actions(observation=observation))
         self.non_expanded_legal_actions = copy.deepcopy(self.all_legal_actions)
-        self.parent_reward = parent_reward
-        
+        if parent_node is None:
+            self.path_reward = 0
+        else:
+            if self.parent_node.get_player() == self.get_player():
+                self.path_reward = self.parent_node.path_reward + parent_reward
+            else:
+                self.path_reward = -1* self.parent_node.path_reward + -1*parent_reward
         
     
     """ 
@@ -176,5 +182,8 @@ class Search_Node():
 
     def get_parent_reward(self):
         return self.parent_reward
+
+    def get_path_reward(self):
+        return self.path_reward
 
       

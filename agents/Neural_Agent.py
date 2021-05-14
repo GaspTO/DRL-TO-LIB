@@ -4,15 +4,41 @@ from torch.nn.modules.activation import ReLU
 import numpy as np
 
 class Neural_Agent(nn.Module):
-    def load_state(self,x):
-        raise NotImplementedError
+    def __init__(self,device=None):
+        super().__init__()
+        self.device = device
+        self.observations = None
+
+    def load_observations(self,observations,device=None):
+        device = self.device if self.device is not None else device
+        assert isinstance(observations,np.ndarray)
+        observations = torch.FloatTensor(observations).to(device)
+        if self.observations is None or not torch.equal(observations,self.observations):
+            self.reset()
+            self.observations = observations               
+        return self
+    
+    def is_loaded(self):
+        return self.observations != None
+
+    def reset(self):
+        self.observations = None
+
+    def get_observation(self):
+        return self.observations
+
+    def set_device(self,device):
+        self.device = device
+
+    def get_device(self):
+        return self.device
 
     ''' Q(S,A) '''
-    def get_q_values(self,mask,apply_softmax):
+    def get_q_values(self,mask: np.ndarray):
         raise NotImplementedError
 
     ''' P(S,A) '''
-    def get_policy_values(self,mask,apply_softmax):
+    def get_policy_values(self,mask: np.ndarray,apply_softmax):
         raise NotImplementedError
 
     ''' V(S)'''
@@ -72,8 +98,9 @@ class Policy_Value_MLP(Neural_Agent):
             nn.Linear(300,1),   
         )
 
+    """
     def load_state(self,x):
-        self.x = x
+        
         self.main_logits = self.net(self.x)
         self.policy_logits = self.policy_net(self.main_logits)
         self.value_logit = self.value_net(self.main_logits)
@@ -93,13 +120,14 @@ class Policy_Value_MLP(Neural_Agent):
     ''' V(S)'''
     def get_state_value(self):
         return self.value_logit
+    """
 
 
 
-
-class Double_Policy_Value_MLP(Neural_Agent):
+class Parallel_MLP(Neural_Agent):
     def __init__(self,input_size=18,action_size=9,hidden_nodes=300):
         super().__init__()
+
         self.pnet = nn.Sequential(
             nn.Flatten(start_dim=1),
             nn.Linear(input_size,hidden_nodes),
@@ -126,23 +154,64 @@ class Double_Policy_Value_MLP(Neural_Agent):
             nn.Linear(hidden_nodes,1),   
         )
 
-    def load_state(self,x):
-        self.x = x
-        self.policy_logits = self.pnet(self.x)
-        self.value_logit = self.vnet(self.x)
-        return self
+        self.qnet = nn.Sequential(
+            nn.Flatten(start_dim=1),
+            nn.Linear(input_size,hidden_nodes),
+            nn.ReLU(),
+            nn.Linear(hidden_nodes,hidden_nodes),
+            nn.ReLU(),
+            nn.Linear(hidden_nodes,hidden_nodes),
+            nn.ReLU(),
+            nn.Linear(hidden_nodes,hidden_nodes),
+            nn.ReLU(),
+            nn.Linear(hidden_nodes,action_size),    
+        )
+
+        self.policy_logits = None
+        self.value_logit = None
+        self.q_logits = None
+
+    def reset(self):
+        super().reset()
+        self.policy_logits = None
+        self.value_logit = None
+        self.q_logits = None
 
     ''' Q(S,A) '''
-    def get_q_values(self, apply_softmax:bool, mask: np.array= None):
-        raise NotImplementedError
+    def get_q_values(self,mask: np.ndarray = None,retain_results = False):
+        #* prepares mask
+        if mask is not None:
+            assert isinstance(mask,np.ndarray)
+            mask = torch.tensor(mask) 
+
+        if self.q_logits is None or retain_results == False:
+            self.q_logits = self.qnet(self.observations)
+        
+        if mask is not None:
+            q_logits = torch.where(torch.tensor(mask) == 0,torch.tensor(0),self.q_logits)
+        else:
+            q_logits = self.q_logits
+
+        return q_logits
 
     ''' P(S,A) '''
-    def get_policy_values(self, apply_softmax:bool, mask: np.array= None):
+    def get_policy_values(self, apply_softmax:bool, mask: np.ndarray= None,retain_results = False):
+        #prepare mask
+        assert isinstance(mask,np.ndarray)
+        mask = torch.tensor(mask) 
+
+        if self.policy_logits is None or retain_results == False:
+            self.policy_logits = self.pnet(self.observations)
+            
         if mask is not None:
-            self.policy_logits = torch.where(mask == 0,torch.tensor(-1e18),self.policy_logits)
-        self.policy_output = self.policy_logits if apply_softmax == False else torch.softmax(self.policy_logits,dim=1)
-        return self.policy_output
+            policy_logits = torch.where(mask == 0,torch.tensor(-1e18),self.policy_logits)
+        else:
+            policy_logits = self.policy_logits
+        policy_output = policy_logits if apply_softmax == False else torch.softmax(policy_logits,dim=1)
+        return policy_output
         
     ''' V(S)'''
-    def get_state_value(self):
+    def get_state_value(self, retain_results = False):
+        if self.value_logit is None or retain_results == False:
+            self.value_logit = self.vnet(self.observations)
         return self.value_logit

@@ -1,5 +1,6 @@
 from environments.core.Players import Players, Player, IN_GAME, TERMINAL, TIE_PLAYER_NUMBER
 import torch
+import numpy as np
 import random
 
 
@@ -80,9 +81,8 @@ class Network_Value(Expansion_Strategy):
             raise ValueError("shouldn't be terminal")
         else:
             current_board = node.get_current_observation()
-            x = torch.from_numpy(current_board).float().unsqueeze(0).to(self.device)
             with torch.no_grad():
-                self.network.load_state(x)
+                self.network.load_observations(np.array([current_board]))
                 estimate = self.network.get_state_value()
         return estimate
 
@@ -102,9 +102,8 @@ class Network_Policy_One_Successor_Rollout(One_Successor_Rollout):
 
     def expand(self,node):
         current_board = node.get_current_observation()
-        st = torch.from_numpy(current_board).float().unsqueeze(0).to(self.device)
         with torch.no_grad():
-            self.network.load_state(st)
+            self.network.load_observations(np.array([current_board]))
         estimate = super().expand(node)
         return estimate
         
@@ -129,9 +128,8 @@ class Network_Policy_Value(Expansion_Strategy):
 
     def expand(self,node):
         current_board = node.get_current_observation()
-        st = torch.from_numpy(current_board).float().unsqueeze(0).to(self.device)
         with torch.no_grad():
-            self.network.load_state(st)
+            self.network.load_observations(np.array([current_board]))
         estimate = super().expand(node)
         return estimate
 

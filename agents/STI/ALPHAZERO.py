@@ -7,23 +7,26 @@ from time import sleep, time
 import torch.optim as optim
 import torch
 import numpy as np
-import math
 import copy
-from utilities.data_structures.Replay_Buffer import Replay_Buffer
+
 ''' 
 MCTS
 '''
-from agents.MCTS.Score_Strategy import *
-from agents.MCTS.Evaluation_Strategy import *
-from agents.MCTS.Expansion_Strategy import *
-from agents.MCTS.Evaluation_Strategy import *
-from agents.MCTS.MCTS_Search_Node import *
-from agents.MCTS.MCTS import *
+from agents.search_agents.best_first_search.strategies.Score_Strategy import *
+from agents.search_agents.best_first_search.strategies.Evaluation_Strategy import *
+from agents.search_agents.best_first_search.strategies.Expansion_Strategy import *
+from agents.search_agents.best_first_search.strategies.Evaluation_Strategy import *
+from agents.search_agents.best_first_search.Best_First_Search_Node import *
+from agents.search_agents.best_first_search.MCTS import *
+'''
+BEST-FIRST MINIMAX
+'''
+from agents.search_agents.best_first_search.Best_First_Minimax import *
 '''
 MINIMAX
 '''
-from agents.MINIMAX.Minimax import *
-from agents.MINIMAX.Value_Estimation_Strategy import *
+from agents.search_agents.depth_first_search.Minimax import *
+from agents.search_agents.depth_first_search.strategies.Value_Estimation_Strategy import *
 
 
 
@@ -71,23 +74,24 @@ class ALPHAZERO(Learning_Agent):
     def step(self):
         self.start = time()
         ''' Agents '''
-        #self.expert_action, self.expert_action_probability_vector, self.expert_state_value = self.mcts_expert(self.observation,25,1,1.0)
+        #self.expert_action, self.expert_action_probability_vector, self.expert_state_value = self.mcts_expert(self.observation,100,1,1.0)
         self.expert_action, self.expert_action_probability_vector, self.expert_state_value = self.minimax_expert(self.observation,max_depth=2)
-        self.net_action, info = self.pick_action()
+        self.net_action, info = self.pick_action_policy()
         self.net_action_probability_vector = info['probability_vector']
         self.net_state_value = info['state_value']
         #! EXPERT
         self.action = self.expert_action
         self.next_observation, self.reward, self.done, _ = self.environment.step(self.action)
 
-    def pick_action(self,current_observation=None) -> tuple([int,dict]):
+    def pick_action_policy(self,current_observation=None,mask=None) -> tuple([int,dict]):
         if current_observation is None: current_observation = self.observation
+        if mask is None: mask = self.mask
         else: raise ValueError("Right now pick action can only use internal state")
-        input_state = torch.from_numpy(current_observation).float().unsqueeze(0).to(torch.device("cpu"))
-        input_mask = torch.from_numpy(self.mask).unsqueeze(0).to(self.device)
-        self.network.load_state(input_state)
+        #input_state = torch.from_numpy(current_observation).float().unsqueeze(0).to(torch.device("cpu"))
+        #input_mask = torch.from_numpy(self.mask).unsqueeze(0).to(self.device)
+        self.network.load_observations(np.expand_dims(current_observation, axis=0))
         ''' policy '''
-        policy_values_logits = self.network.get_policy_values(False,input_mask)
+        policy_values_logits = self.network.get_policy_values(False,np.array([mask]))
         policy_values_softmax =  torch.softmax(policy_values_logits,dim=1)
         #!sampling
         #action_distribution = Categorical(policy_values_softmax) # this creates a distribution to sample from
@@ -102,6 +106,7 @@ class ALPHAZERO(Learning_Agent):
             "logits": policy_values_logits[0], "probability_vector": policy_values_softmax[0], "state_value":state_value[0]}
 
 
+
     """""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
     *                            LEARNING METHODS     
     *                       Learning on Trajectories                                 
@@ -114,9 +119,7 @@ class ALPHAZERO(Learning_Agent):
         shuffle(episodes_copy)
         for i in range(self.learn_epochs):
             for episode in episodes_copy:
-                self.network.to(torch.device("cuda" if torch.cuda.is_available() else "cpu"))
-                batch_x = torch.FloatTensor(episode.episode_observations).to(torch.device("cuda" if torch.cuda.is_available() else "cpu"))
-                self.network.load_state(batch_x)
+                self.network.load_observations(np.array(episode.episode_observations))
                 #loss_policy_on_tree = self.learn_policy_on_tree(episode)
                 #loss_value_on_tree = self.learn_value_on_tree(episode)
                 #loss_policy_on_trajectory = self.learn_policy_on_trajectory_reinforce(episode)
@@ -279,16 +282,16 @@ class ALPHAZERO(Learning_Agent):
         #tree_score = Win_Ratio_Score()
 
         #* eval functions
-        #tree_evaluation = UCT(exploration_weight=1.0)
-        tree_evaluation = UCT_P(exploration_weight=1.0)
+        tree_evaluation = UCT(exploration_weight=1.0)
+        #tree_evaluation = UCT_P(exploration_weight=1.0)
         #tree_evaluation = PUCT(exploration_weight=1.0)
 
         #* expand policy
         #! expand policy
         #tree_expansion = One_Successor_Rollout()
-        #tree_expansion = Network_Value(self.network,self.device)
+        tree_expansion = Network_Value(self.network,self.device)
         #tree_expansion = Network_Policy_Value(self.network,self.device)
-        tree_expansion = Network_Policy_One_Successor_Rollout(self.network,self.device)
+        #tree_expansion = Network_Policy_One_Successor_Rollout(self.network,self.device)
 
  
         #* tree policy 
@@ -314,11 +317,14 @@ class ALPHAZERO(Learning_Agent):
         env = self.environment.environment
 
         #* value estimation policy
-        #value_estimation = Random_Rollout_Estimation(num_rollouts=num_rollouts)
+        #value_estimation = Random_Rollout_Estimation(num_rollouts=1)
         value_estimation = Network_Value_Estimation(self.network,self.device)
+        #value_estimation = Network_Q_Estimation(self.network,self.device)
 
         #* tree policy
-        tree_policy = Minimax(env,value_estimation,max_depth=1)
+        #tree_policy = Minimax(env,value_estimation,max_depth=max_depth)
+        tree_policy = Best_First_Minimax(env,value_estimation,num_expansions=100)
+
         action_probs, info = tree_policy.play(observation)
         root_node = info["root_node"]
 
@@ -354,9 +360,8 @@ class ALPHAZERO(Learning_Agent):
                 ):
 
             with torch.no_grad():
-                state = torch.from_numpy(observation).float().unsqueeze(0).to(self.device)
-                self.network.load_state(state)
-                new_net_vector = self.network.get_policy_values(apply_softmax=True,mask=torch.tensor(mask).unsqueeze(0))[0]
+                self.network.load_observations(np.expand_dims(observation,axis=0))
+                new_net_vector = self.network.get_policy_values(apply_softmax=True,mask=np.array([mask]))[0]
                 new_state_value = self.network.get_state_value()[0]
 
             expert_vector_string = ["{0}=>{1:.4f}".format(i,expert_vector[i]) for i in range(len(expert_vector))]

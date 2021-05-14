@@ -1,17 +1,21 @@
 from environments.core.Players import Players, Player, IN_GAME, TERMINAL, TIE_PLAYER_NUMBER
+import numpy as np
 import torch
 import random
 
 
+#! tip: why not have a hash table with values working as a cache?
+
 """ Expand """
 class Value_Estimation_Strategy:
     def __init__(self):
-        pass
+        self.parent_node = None
 
-    ''' estimates value of node and returns value'''
-    def estimate(self,node) -> float:
+    def load_parent_node(self,parent_node):
         return NotImplementedError
 
+    def estimate_node(self,node):
+        return NotImplementedError
 
 '''
 Handles total_visits through rollout estimate
@@ -26,8 +30,7 @@ class Random_Rollout_Estimation(Value_Estimation_Strategy):
         super().__init__()
         self.num_rollouts = num_rollouts
 
-    #* returns the value of subtree total reward from the prespective of succ_node
-    def estimate(self,node):
+    def estimate_node(self,node):
         if node.is_terminal():
             return 0
         else:
@@ -44,6 +47,7 @@ class Random_Rollout_Estimation(Value_Estimation_Strategy):
             return accumulated_reward/self.num_rollouts
 
 
+
 class Network_Value_Estimation(Value_Estimation_Strategy):
     '''
         NO POLICY BIAS
@@ -54,16 +58,37 @@ class Network_Value_Estimation(Value_Estimation_Strategy):
         self.network = network
         self.device = device
 
-    def estimate(self,node):
+    def estimate_node(self,node):
         if node.is_terminal():
             return 0
         else:
             current_board = node.get_current_observation()
-            x = torch.from_numpy(current_board).float().unsqueeze(0).to(self.device)
             with torch.no_grad():
-                self.network.load_state(x)
+                self.network.load_observations(np.array([current_board]))
                 estimate = self.network.get_state_value()
             return estimate
 
 
-
+class Network_Q_Estimation(Value_Estimation_Strategy):
+    '''
+        NO POLICY BIAS
+        STATE ESTIMATE IS DONE USING NETWORK BUT IT NEEDS TO BE LOADED WHEN PASSED IN __init__
+    '''
+    def __init__(self,network,device):
+        super().__init__()
+        self.network = network
+        self.device = device
+        self.parent_node = None
+        self.q_estimations = None
+       
+    def estimate_node(self,node):
+        if self.parent_node != node.get_parent_node():
+            self.parent_node = node.get_parent_node()
+            with torch.no_grad():
+                current_board = self.parent_node.get_current_observation()
+                self.network.load_observations(np.array([current_board]))
+                self.q_estimations = self.network.get_q_values()[0]
+        if node.is_terminal():
+            return 0
+        else:
+           return self.q_estimations[node.get_parent_action()]

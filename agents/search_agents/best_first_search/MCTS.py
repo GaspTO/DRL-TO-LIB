@@ -1,16 +1,11 @@
-from agents.MCTS.Expansion_Strategy import Expansion_Strategy
 from agents.Agent import Agent
-from agents.MCTS.Evaluation_Strategy import UCT, PUCT
-from agents.MCTS.MCTS_Search_Node import MCTS_Search_Node
+from agents.search_agents.best_first_search.strategies.Expansion_Strategy import Expansion_Strategy
+from agents.search_agents.best_first_search.strategies.Evaluation_Strategy import UCT, PUCT
+from agents.search_agents.best_first_search.Best_First_Search_Node import Best_First_Search_Node
 import numpy as np
-
-
-
-
 
 '''
 Normal MCTS - with recursive calls
-
 Only works for 1 or 2 players
 '''
 class MCTS(Agent):
@@ -25,14 +20,14 @@ class MCTS(Agent):
 
     def play(self,observation=None,debug=False):
         if(observation is None): observation = self.environment.get_current_observation()
-        self.root = MCTS_Search_Node(self.environment,observation)
+        self.root = Best_First_Search_Node(self.environment,observation)
         self.expansion_st.expand(self.root)
         for i in range(self.iterations):
-            self._search(self.root,debug)
+            self._mcts_search(self.root,debug)
         if debug: self._validate(self.root)
         return self._get_action_probabilities(self.root), {"root_node":self.root}
 
-    def _search(self,node,debug=False):
+    def _mcts_search(self,node,debug=False):
         if node.is_terminal():
             self._backtrack(node,0)
         elif not node.is_completely_expanded():
@@ -40,7 +35,7 @@ class MCTS(Agent):
             self._backtrack(node,leaf_value)
         else: 
             next_node = max(node.get_successors(),key=self.evaluation_st.evaluate)
-            self._search(next_node,debug)
+            self._mcts_search(next_node,debug)
        
     def _backtrack(self,node,leaf_value):
         path_value = leaf_value #leaf is in node.get_player() prespective
