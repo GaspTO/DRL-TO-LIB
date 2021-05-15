@@ -215,3 +215,97 @@ class Parallel_MLP(Neural_Agent):
         if self.value_logit is None or retain_results == False:
             self.value_logit = self.vnet(self.observations)
         return self.value_logit
+
+
+
+class Parallel_Conv(Neural_Agent):
+    def __init__(self,input_size=18,action_size=9,hidden_nodes=300):
+        super().__init__()
+
+        self.pnet = nn.Sequential(
+            nn.Flatten(start_dim=1),
+            nn.Linear(input_size,hidden_nodes),
+            nn.ReLU(),
+            nn.Linear(hidden_nodes,hidden_nodes),
+            nn.ReLU(),
+            nn.Linear(hidden_nodes,hidden_nodes),
+            nn.ReLU(),
+            nn.Linear(hidden_nodes,hidden_nodes),
+            nn.ReLU(),
+            nn.Linear(hidden_nodes,action_size),    
+        )
+
+        self.vnet = nn.Sequential(
+            nn.Flatten(start_dim=1),
+            nn.Linear(input_size,hidden_nodes),
+            nn.ReLU(),
+            nn.Linear(hidden_nodes,hidden_nodes),
+            nn.ReLU(),
+            nn.Linear(hidden_nodes,hidden_nodes),
+            nn.ReLU(),
+            nn.Linear(hidden_nodes,hidden_nodes),
+            nn.ReLU(),
+            nn.Linear(hidden_nodes,1),   
+        )
+
+        self.qnet = nn.Sequential(
+            nn.Flatten(start_dim=1),
+            nn.Linear(input_size,hidden_nodes),
+            nn.ReLU(),
+            nn.Linear(hidden_nodes,hidden_nodes),
+            nn.ReLU(),
+            nn.Linear(hidden_nodes,hidden_nodes),
+            nn.ReLU(),
+            nn.Linear(hidden_nodes,hidden_nodes),
+            nn.ReLU(),
+            nn.Linear(hidden_nodes,action_size),    
+        )
+
+        self.policy_logits = None
+        self.value_logit = None
+        self.q_logits = None
+
+    def reset(self):
+        super().reset()
+        self.policy_logits = None
+        self.value_logit = None
+        self.q_logits = None
+
+    ''' Q(S,A) '''
+    def get_q_values(self,mask: np.ndarray = None,retain_results = False):
+        #* prepares mask
+        if mask is not None:
+            assert isinstance(mask,np.ndarray)
+            mask = torch.tensor(mask) 
+
+        if self.q_logits is None or retain_results == False:
+            self.q_logits = self.qnet(self.observations)
+        
+        if mask is not None:
+            q_logits = torch.where(torch.tensor(mask) == 0,torch.tensor(0),self.q_logits)
+        else:
+            q_logits = self.q_logits
+
+        return q_logits
+
+    ''' P(S,A) '''
+    def get_policy_values(self, apply_softmax:bool, mask: np.ndarray= None,retain_results = False):
+        #prepare mask
+        assert isinstance(mask,np.ndarray)
+        mask = torch.tensor(mask) 
+
+        if self.policy_logits is None or retain_results == False:
+            self.policy_logits = self.pnet(self.observations)
+            
+        if mask is not None:
+            policy_logits = torch.where(mask == 0,torch.tensor(-1e18),self.policy_logits)
+        else:
+            policy_logits = self.policy_logits
+        policy_output = policy_logits if apply_softmax == False else torch.softmax(policy_logits,dim=1)
+        return policy_output
+        
+    ''' V(S)'''
+    def get_state_value(self, retain_results = False):
+        if self.value_logit is None or retain_results == False:
+            self.value_logit = self.vnet(self.observations)
+        return self.value_logit

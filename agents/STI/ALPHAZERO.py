@@ -76,10 +76,11 @@ class ALPHAZERO(Learning_Agent):
         ''' Agents '''
         #self.expert_action, self.expert_action_probability_vector, self.expert_state_value = self.mcts_expert(self.observation,100,1,1.0)
         #self.expert_action, self.expert_action_probability_vector, self.expert_state_value = self.minimax_expert(self.observation,max_depth=2)
-        self.expert_action, self.expert_action_probability_vector, self.expert_state_value = self.best_first_minimax_expert(self.observation,iterations=100)
+        self.expert_action, self.expert_action_probability_vector, self.expert_state_value = self.best_first_minimax_expert(self.observation,iterations=25)
         self.net_action, info = self.pick_action_policy()
         self.net_action_probability_vector = info['probability_vector']
         self.net_state_value = info['state_value']
+        self.net_q_values = info['q_values']
         #! EXPERT
         self.action = self.expert_action
         self.next_observation, self.reward, self.done, _ = self.environment.step(self.action)
@@ -102,13 +103,16 @@ class ALPHAZERO(Learning_Agent):
         action = policy_values_softmax.argmax()
         ''' state value '''
         state_value = self.network.get_state_value()
+        '''' q values '''
+        q_values = self.network.get_q_values()
 
         
         return action.item(), {"action_probability": policy_values_softmax[0][action],
             "action_log_probability":torch.log_softmax(policy_values_logits,dim=1)[0][action],
-            "logits": policy_values_logits[0], "probability_vector": policy_values_softmax[0], "state_value":state_value[0]}
+            "logits": policy_values_logits[0], "probability_vector": policy_values_softmax[0], "state_value":state_value[0], "q_values":q_values[0]}
     
 
+    
 
 
     """""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
@@ -129,16 +133,18 @@ class ALPHAZERO(Learning_Agent):
                 #loss_value_on_tree = self.learn_value_on_tree(episode)
                 #loss_value_on_trajectory = self.learn_value_on_trajectory(episode)
 
-                ''' q '''
-                loss_q_on_trajectory_mc = self.learn_q_on_trajectory_monte_carlo(episode)
-
                 ''' policy '''
                 #loss_policy_on_tree = self.learn_policy_on_tree(episode)
                 #loss_policy_on_trajectory_reinforce = self.learn_policy_on_trajectory_reinforce(episode)
                 
+                ''' q '''
+                #* keep the temporal difference at last cause it reloads network
+                #loss_q_on_trajectory_mc = self.learn_q_on_trajectory_monte_carlo(episode)
+                loss_q_temporal_difference = self.learn_q_on_temporal_difference(episode)
+
 
                 #! ADD TOTAL LOSS
-                total_loss = loss_q_on_trajectory_mc
+                total_loss = loss_q_temporal_difference
                 self.take_optimisation_step(self.optimizer1,self.network,total_loss, self.config.get_gradient_clipping_norm())
 
                
@@ -191,13 +197,15 @@ class ALPHAZERO(Learning_Agent):
         return loss
 
     def learn_q_on_temporal_difference(self,episode,discount_rate=1):
+        '!careful: it reloads the network'
         self.network.load_observations(np.array(episode.episode_observations))
         actions = torch.tensor(episode.episode_actions)
-        q_values = self.network.get_q_values()[0]
+        q_values = self.network.get_q_values()
         q_values =  q_values[torch.arange(len(q_values)),actions]
         self.network.load_observations(np.array(episode.episode_next_observations))
-        q_values_next = self.network.get_q_values()[0].max(1)
-        q_targets = episode.episode_rewards + (discount_rate * q_values_next * (1 - episode.episode_dones))
+        with torch.no_grad():
+            q_values_next = self.network.get_q_values().max(1)[0]
+        q_targets = torch.tensor(episode.episode_rewards) + (discount_rate * q_values_next * torch.tensor(np.where(episode.episode_dones,0,1)))
         loss = (q_values - q_targets)**2
         loss = loss.mean()
         return loss
@@ -257,7 +265,8 @@ class ALPHAZERO(Learning_Agent):
         self.episode_net_actions.append(self.net_action)
         #* vectors
         self.episode_expert_action_probability_vector.append(self.expert_action_probability_vector)
-        self.episode_net_action_probability_vector.append(self.net_action_probability_vector)
+        #self.episode_net_action_probability_vector.append(self.net_action_probability_vector)
+        self.episode_net_action_probability_vector.append(self.net_q_values)
         #* action probability 
         #self.episode_expert_action_probabilities.append(self.expert_action_probability)
         #self.episode_expert_action_log_probabilities.append(self.expert_action_log_probability)
