@@ -20,5 +20,5 @@ class Win_Ratio_Score(Score_Strategy):
     def summarize(self, node):
         if node.num_visits == 0:
             return 0.  
-        return (node.total_value) / node.num_visits
+        return (-node.total_value) / node.num_visits
 

@@ -32,7 +32,7 @@ from agents.search_agents.depth_first_search.strategies.Value_Estimation_Strateg
 
 
 
-Episode_Tuple = namedtuple('Episode_Tuple', ['episode_observations','episode_masks','episode_actions','episode_expert_actions','episode_net_actions','episode_expert_action_probability_vector','episode_rewards','episode_expert_state_values'])
+Episode_Tuple = namedtuple('Episode_Tuple', ['episode_observations','episode_masks','episode_actions','episode_expert_actions','episode_net_actions','episode_expert_action_probability_vector','episode_rewards','episode_expert_state_values','episode_next_observations','episode_dones'])
 
 class ALPHAZERO(Learning_Agent):
     agent_name = "ALPHAZERO"
@@ -75,7 +75,8 @@ class ALPHAZERO(Learning_Agent):
         self.start = time()
         ''' Agents '''
         #self.expert_action, self.expert_action_probability_vector, self.expert_state_value = self.mcts_expert(self.observation,100,1,1.0)
-        self.expert_action, self.expert_action_probability_vector, self.expert_state_value = self.minimax_expert(self.observation,max_depth=2)
+        #self.expert_action, self.expert_action_probability_vector, self.expert_state_value = self.minimax_expert(self.observation,max_depth=2)
+        self.expert_action, self.expert_action_probability_vector, self.expert_state_value = self.best_first_minimax_expert(self.observation,iterations=100)
         self.net_action, info = self.pick_action_policy()
         self.net_action_probability_vector = info['probability_vector']
         self.net_state_value = info['state_value']
@@ -83,7 +84,9 @@ class ALPHAZERO(Learning_Agent):
         self.action = self.expert_action
         self.next_observation, self.reward, self.done, _ = self.environment.step(self.action)
 
+    
     def pick_action_policy(self,current_observation=None,mask=None) -> tuple([int,dict]):
+        #todo this is a very unecessary method for efficiency. 
         if current_observation is None: current_observation = self.observation
         if mask is None: mask = self.mask
         else: raise ValueError("Right now pick action can only use internal state")
@@ -104,6 +107,7 @@ class ALPHAZERO(Learning_Agent):
         return action.item(), {"action_probability": policy_values_softmax[0][action],
             "action_log_probability":torch.log_softmax(policy_values_logits,dim=1)[0][action],
             "logits": policy_values_logits[0], "probability_vector": policy_values_softmax[0], "state_value":state_value[0]}
+    
 
 
 
@@ -120,34 +124,38 @@ class ALPHAZERO(Learning_Agent):
         for i in range(self.learn_epochs):
             for episode in episodes_copy:
                 self.network.load_observations(np.array(episode.episode_observations))
-                #loss_policy_on_tree = self.learn_policy_on_tree(episode)
+
+                ''' value '''
                 #loss_value_on_tree = self.learn_value_on_tree(episode)
-                #loss_policy_on_trajectory = self.learn_policy_on_trajectory_reinforce(episode)
-                loss_value_on_trajectory = self.learn_value_on_trajectory(episode)
+                #loss_value_on_trajectory = self.learn_value_on_trajectory(episode)
+
+                ''' q '''
+                loss_q_on_trajectory_mc = self.learn_q_on_trajectory_monte_carlo(episode)
+
+                ''' policy '''
+                #loss_policy_on_tree = self.learn_policy_on_tree(episode)
+                #loss_policy_on_trajectory_reinforce = self.learn_policy_on_trajectory_reinforce(episode)
+                
+
                 #! ADD TOTAL LOSS
-                total_loss = loss_value_on_trajectory
+                total_loss = loss_q_on_trajectory_mc
                 self.take_optimisation_step(self.optimizer1,self.network,total_loss, self.config.get_gradient_clipping_norm())
 
                
         self.network.to(torch.device("cpu"))
         self.episodes = self.episodes[:self.memory_size]
 
+    ''' V(S) '''
     def learn_value_on_tree(self,episode):
+        self.network.load_observations(np.array(episode.episode_observations))
         network_state_values = self.network.get_state_value()
         target_state_values = torch.cat(episode.episode_expert_state_values)
         loss_vector = (network_state_values - target_state_values)**2
         loss = loss_vector.mean()
         return loss
 
-    def learn_policy_on_tree(self,episode):
-        masks = torch.Tensor(episode.episode_masks)
-        network_policy_values_logits = self.network.get_policy_values(apply_softmax=False,mask=masks)
-        network_log_policy_values = torch.log_softmax(network_policy_values_logits,dim=1).reshape(-1)
-        target_policy_values =torch.cat(episode.episode_expert_action_probability_vector)
-        loss = -1 * target_policy_values.dot(network_log_policy_values)
-        return loss
-
     def learn_value_on_trajectory(self,episode,discount_rate=1):
+        self.network.load_observations(np.array(episode.episode_observations))
         def calculate_discounted_episode_returns(episode_rewards,discount_rate):
             discounted_returns = []
             discounted_total_reward = 0.
@@ -162,8 +170,51 @@ class ALPHAZERO(Learning_Agent):
         loss = loss_vector.mean()
         return loss
 
+    ''' Q(S,A) '''
+    def learn_q_on_trajectory_monte_carlo(self,episode,discount_rate=1):
+        """ this is montecarlo learning, not temporal difference """
+        self.network.load_observations(np.array(episode.episode_observations))
+        def calculate_discounted_episode_returns(episode_rewards,discount_rate):
+            discounted_returns = []
+            discounted_total_reward = 0.
+            for ix in range(len(episode_rewards)):
+                discounted_total_reward = episode_rewards[-(ix + 1)] + discount_rate*discounted_total_reward
+                discounted_returns.insert(0,discounted_total_reward)
+            return discounted_returns
+
+        discounted_rewards = torch.tensor(calculate_discounted_episode_returns(episode.episode_rewards,discount_rate=discount_rate))
+        actions = torch.tensor(episode.episode_actions)
+        q_values = self.network.get_q_values()
+        q_values =  q_values[torch.arange(len(q_values)),actions]
+        loss_vector = (q_values - discounted_rewards)**2
+        loss = loss_vector.mean()
+        return loss
+
+    def learn_q_on_temporal_difference(self,episode,discount_rate=1):
+        self.network.load_observations(np.array(episode.episode_observations))
+        actions = torch.tensor(episode.episode_actions)
+        q_values = self.network.get_q_values()[0]
+        q_values =  q_values[torch.arange(len(q_values)),actions]
+        self.network.load_observations(np.array(episode.episode_next_observations))
+        q_values_next = self.network.get_q_values()[0].max(1)
+        q_targets = episode.episode_rewards + (discount_rate * q_values_next * (1 - episode.episode_dones))
+        loss = (q_values - q_targets)**2
+        loss = loss.mean()
+        return loss
+
+    ''' P(S,A) '''
+    def learn_policy_on_tree(self,episode):
+        self.network.load_observations(np.array(episode.episode_observations))
+        masks = torch.Tensor(episode.episode_masks)
+        network_policy_values_logits = self.network.get_policy_values(apply_softmax=False,mask=masks)
+        network_log_policy_values = torch.log_softmax(network_policy_values_logits,dim=1).reshape(-1)
+        target_policy_values =torch.cat(episode.episode_expert_action_probability_vector)
+        loss = -1 * target_policy_values.dot(network_log_policy_values)
+        return loss
+
 
     def learn_policy_on_trajectory_reinforce(self,episode,discount_rate=1):
+        self.network.load_observations(np.array(episode.episode_observations))
         def calculate_discounted_episode_returns(episode_rewards,discount_rate):
             discounted_returns = []
             discounted_total_reward = 0.
@@ -183,6 +234,7 @@ class ALPHAZERO(Learning_Agent):
         return loss
 
     def learn_policy_on_trajectory_dagger(self,episode,discount_rate=1):
+        self.network.load_observations(np.array(episode.episode_observations))
         masks = torch.Tensor(episode.episode_masks)
         network_policy_values_logits = self.network.get_policy_values(apply_softmax=False,mask=masks)
         network_log_policy_values = torch.log_softmax(network_policy_values_logits,dim=1)
@@ -222,7 +274,9 @@ class ALPHAZERO(Learning_Agent):
                 self.episode_net_actions,
                 self.episode_expert_action_probability_vector,
                 self.episode_rewards,
-                self.episode_expert_state_values))
+                self.episode_expert_state_values,
+                self.episode_next_observations,
+                self.episode_dones))
 
     def end_episode(self):
         super().end_episode()
@@ -262,17 +316,7 @@ class ALPHAZERO(Learning_Agent):
         action = search.play(observation)
         probs = search.probs
         return action,probs
-    '''
-    def mcts_exploitation_rl(self,observation,n,exploration_weight):
-        search = MCTS_Agents.MCTS_Exploitation_RL_Agent(self.environment.environment,n,self.network,self.device,exploration_weight=exploration_weight)
-        action = search.play(observation)
-        return action
 
-    def mcts_IDAstar_rl(self,observation,n,exploration_weight):
-        search = MCTS_Agents.MCTS_IDAstar_Agent(self.environment.environment,n,self.network,self.device,exploration_weight=exploration_weight)
-        action = search.play(observation)
-        return action
-    '''
 
     def mcts_expert(self,observation,iterations,k,exploration_weight):
         env = self.environment.environment
@@ -318,12 +362,12 @@ class ALPHAZERO(Learning_Agent):
 
         #* value estimation policy
         #value_estimation = Random_Rollout_Estimation(num_rollouts=1)
-        value_estimation = Network_Value_Estimation(self.network,self.device)
-        #value_estimation = Network_Q_Estimation(self.network,self.device)
+        #value_estimation = Network_Value_Estimation(self.network,self.device)
+        value_estimation = Network_Q_Estimation(self.network,self.device)
 
         #* tree policy
-        #tree_policy = Minimax(env,value_estimation,max_depth=max_depth)
-        tree_policy = Best_First_Minimax(env,value_estimation,num_expansions=100)
+        tree_policy = Minimax(env,value_estimation,max_depth=max_depth)
+       
 
         action_probs, info = tree_policy.play(observation)
         root_node = info["root_node"]
@@ -336,8 +380,23 @@ class ALPHAZERO(Learning_Agent):
         return action, torch.FloatTensor(action_probs), torch.tensor([root_node.value])
         
 
+    def best_first_minimax_expert(self,observation,iterations):
+        env = self.environment.environment
 
+        #* value estimation policy
+        #expansion_st = All_Successors_Rollout(num_rollouts=1)
+        #expansion_st = Network_Successor_Q(self.network,self.device)
+        expansion_st = Network_Successor_V(self.network,self.device)
 
+        #* tree policy
+        tree_policy = Best_First_Minimax(env,expansion_st,num_iterations=iterations)
+
+        #!sampling
+        action_probs, info = tree_policy.play(observation)
+        root_node = info["root_node"]
+        action = action_probs.argmax()
+
+        return action, torch.FloatTensor(action_probs), torch.tensor([root_node.value])
 
 
     """""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""

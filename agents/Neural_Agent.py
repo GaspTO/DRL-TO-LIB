@@ -24,7 +24,7 @@ class Neural_Agent(nn.Module):
     def reset(self):
         self.observations = None
 
-    def get_observation(self):
+    def get_observations(self):
         return self.observations
 
     def set_device(self,device):

@@ -6,6 +6,7 @@ class Best_First_Search_Node(Search_Node):
         super().__init__(environment_interface,observation,parent_node=parent_node,parent_action=parent_action,parent_reward=parent_reward,terminal=terminal,legal_actions=legal_actions)
         self.num_visits = 0
         self.total_value = 0
+        self.value = 0
         self.exploration_bias = 1
 
     def find_successor_after_action(self,action):

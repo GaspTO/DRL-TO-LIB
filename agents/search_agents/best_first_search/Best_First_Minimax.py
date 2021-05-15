@@ -4,28 +4,24 @@ import torch
 import numpy as np
 
 class Best_First_Minimax(Agent):
-    def __init__(self,environment,value_estimation,num_expansions=None):
+    def __init__(self,environment,expansion_st,num_iterations=None):
         Agent.__init__(self,environment)
-        self.value_estimation = value_estimation
-        self.num_expansions = num_expansions
+        self.expansion_st = expansion_st
+        self.num_iterations = num_iterations
 
     def play(self,observation=None,debug=False):
         if(observation is None): observation = self.environment.get_current_observation()
         self.root = Best_First_Search_Node(self.environment,observation)
-        self.root.N = 0
-        self._minimax_search(self.root,self.num_expansions,debug)
+        self._minimax_search(self.root,self.num_iterations,debug)
         return self._get_action_probabilities(self.root), {"root_node":self.root}
 
-    def _minimax_search(self,root,num_expansions,debug=False):
-        for i in range(num_expansions):
+    def _minimax_search(self,root,num_iterations,debug=False):
+        for i in range(num_iterations):
             frontier_node = self._find_best_unexpanded_node(root)
             if frontier_node == None:
                 return
             else:
-                successors = frontier_node.expand_rest_successors()
-                for n in successors:
-                    n.value = self.value_estimation.estimate_node(n)
-                    n.N = 0
+                self.expansion_st.expand(frontier_node)
                 self._backtrack(frontier_node)
             pass
                 
@@ -43,17 +39,10 @@ class Best_First_Minimax(Agent):
         return node
 
     def _backtrack(self,node):
-        ''' if node.is_completely_expanded() and not node.is_terminal():
-                if node.get_player() == node.get_parent_node().get_player():
-                    node_future_reward_estimation_fn = lambda n: n.get_parent_reward() + n.value #edge between n and succ plus rest of path estimation
-                else:
-                    node_future_reward_estimation_fn = lambda n: n.get_parent_reward() + -1*n.value
-        '''
         if node is not None:
             best_succ_node = max(node.get_successors(),key=self._get_parent_estimation_though_successor)
             node.value = self._get_parent_estimation_though_successor(best_succ_node)
             self._backtrack(node.get_parent_node())
-            node.N += 1
             
     def _get_parent_estimation_though_successor(self,succ):
         if succ.get_player() == succ.get_parent_node().get_player():
@@ -74,11 +63,6 @@ class Best_First_Minimax(Agent):
                 action_probs[n.get_parent_action()] = 1
         action_probs = action_probs * (1/num_max_values)
         
-        #minimum = action_probs.min()
-        #action_probs = (action_probs - minimum)
-        #action_probs = np.where(mask == 0,0.,action_probs)
-        #action_probs = action_probs/(action_probs.sum())
-       # action_probs2 = np.where(action_probs == self.root.value,1/num_max_values,0.)
         if action_probs.sum().item() > 1:
             print("ups")
         return action_probs

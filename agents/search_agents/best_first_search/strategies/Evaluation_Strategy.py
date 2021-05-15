@@ -5,8 +5,16 @@ class Evaluation_Strategy:
     def evaluate(self,node):
         pass
 
+class Greedy(Evaluation_Strategy):
+    ''' exploitation '''
+    def Q(self,node):
+        return -node.value
 
-class UCT(Evaluation_Strategy):
+    def evaluate(self,node):
+        return self.Q(node)
+
+
+class UCT(Greedy):
     '''
     NEEDS:
         node.num_chosen_by_parent
@@ -21,10 +29,6 @@ class UCT(Evaluation_Strategy):
     def U(self,node):
         return self.exploration_weight * sqrt(self.log_N_vertex / (node.num_visits + 1))
 
-    ''' exploitation '''
-    def Q(self,node):
-        return (-node.total_value) / (node.num_visits + 1)
-
     def evaluate(self,node):
         self.log_N_vertex = log(node.get_parent_node().num_visits + 1)
         U = self.U(node)
@@ -32,7 +36,7 @@ class UCT(Evaluation_Strategy):
         return U + Q
 
 
-class UCT_P(Evaluation_Strategy):
+class UCT_P(Greedy):
     '''
     NEEDS:
         node.num_chosen_by_parent
@@ -45,11 +49,7 @@ class UCT_P(Evaluation_Strategy):
 
     ''' exploration '''
     def U(self,node):
-        return self.exploration_weight * node.policy_value * sqrt(self.log_N_vertex / (1 + node.num_visits))
-
-    ''' exploitation '''
-    def Q(self,node):
-        return (-node.total_value) / (1 + node.num_visits)
+        return self.exploration_weight * node.exploration_bias * sqrt(self.log_N_vertex / (1 + node.num_visits))
 
     def evaluate(self,node):
         self.log_N_vertex = log(node.get_parent_node().num_visits + 1)
@@ -57,23 +57,19 @@ class UCT_P(Evaluation_Strategy):
         Q = self.Q(node)
         return U + Q
 
-class PUCT(Evaluation_Strategy):
+class PUCT(Greedy):
     '''
     NEEDS:
         node.num_visits
         node.total_value
-        node.policy_value
+        node.exploration_bias
     '''
     def __init__(self,exploration_weight=1.0):
         self.exploration_weight = exploration_weight
 
     ''' exploration '''
     def U(self,node):
-        return self.exploration_weight * node.policy_value * self.sqrt_N /(1 + node.num_visits)
-
-    ''' exploitation '''
-    def Q(self,node):
-        return (-node.W)/(node.num_visits + 1)
+        return self.exploration_weight * node.exploration_bias * self.sqrt_N /(1 + node.num_visits)
 
     def evaluate(self,node):
         self.sqrt_N = sqrt(node.get_parent_node().num_visits)

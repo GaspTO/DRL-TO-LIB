@@ -51,6 +51,7 @@ class MCTS(Agent):
             else:
                 node.total_value += path_value
             node.num_visits += 1
+            node.value = node.total_value/node.num_visits
             node = node.get_parent_node()
 
     def _get_action_probabilities(self,node):
