@@ -1,4 +1,3 @@
-from random import shuffle
 import agents.tree_agents.MCTS_Agents as MCTS_Agents
 from agents.Learning_Agent import Learning_Agent, Config_Learning_Agent
 from torch.distributions import Categorical
@@ -8,6 +7,7 @@ import torch.optim as optim
 import torch
 import numpy as np
 import copy
+import random
 
 ''' 
 MCTS
@@ -44,6 +44,7 @@ class ALPHAZERO(Learning_Agent):
         #!OPTIMIZE
         self.optimizer1 = optim.Adam(self.network.parameters(), lr=2e-05)
         self.optimizer2 = optim.Adam(self.network.parameters(), lr=2e-06)
+        self.optimizer3 = optim.Adam(self.network.parameters(), lr=2e-08)
         self.optimizerSGD = optim.SGD(self.network.parameters(),lr=2e-07)
         self.trajectories = []
         self.dataset = []
@@ -55,7 +56,8 @@ class ALPHAZERO(Learning_Agent):
         self.memory_size = 500 #1
         self.size_of_batch = 6
         self.update_on_episode = 100 #1
-        self.learn_epochs = 8 #1
+        self.episode_batch =  100
+        self.learn_epochs = 5 #1
 
 
     """""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
@@ -76,11 +78,11 @@ class ALPHAZERO(Learning_Agent):
         ''' Agents '''
         #self.expert_action, self.expert_action_probability_vector, self.expert_state_value = self.mcts_expert(self.observation,100,1,1.0)
         #self.expert_action, self.expert_action_probability_vector, self.expert_state_value = self.minimax_expert(self.observation,max_depth=2)
-        self.expert_action, self.expert_action_probability_vector, self.expert_state_value = self.best_first_minimax_expert(self.observation,iterations=25)
+        self.expert_action, self.expert_action_probability_vector, self.expert_state_value = self.best_first_minimax_expert(self.observation,iterations=100)
         self.net_action, info = self.pick_action_policy()
-        self.net_action_probability_vector = info['probability_vector']
+        #self.net_action_probability_vector = info['probability_vector']
         self.net_state_value = info['state_value']
-        self.net_q_values = info['q_values']
+        self.net_action_probability_vector = info['q_values']
         #! EXPERT
         self.action = self.expert_action
         self.next_observation, self.reward, self.done, _ = self.environment.step(self.action)
@@ -123,10 +125,10 @@ class ALPHAZERO(Learning_Agent):
         return self.done and self.episode_number % self.update_on_episode == 0 and self.episode_number != 0
 
     def learn(self):
-        episodes_copy = copy.deepcopy(self.episodes)
-        shuffle(episodes_copy)
+        #! remove
+        episodes_to_train = self.get_episode_batch(episode_batch=self.episode_batch,shuffle=True)
         for i in range(self.learn_epochs):
-            for episode in episodes_copy:
+            for episode in episodes_to_train:
                 self.network.load_observations(np.array(episode.episode_observations))
 
                 ''' value '''
@@ -139,17 +141,17 @@ class ALPHAZERO(Learning_Agent):
                 
                 ''' q '''
                 #* keep the temporal difference at last cause it reloads network
-                #loss_q_on_trajectory_mc = self.learn_q_on_trajectory_monte_carlo(episode)
-                loss_q_temporal_difference = self.learn_q_on_temporal_difference(episode)
+                loss_q_on_trajectory_mc = self.learn_q_on_trajectory_monte_carlo(episode)
+                #loss_q_temporal_difference = self.learn_q_on_temporal_difference(episode)
+                #loss_q_on_minimax_root = self.learn_q_on_minimax_root(episode)
 
 
                 #! ADD TOTAL LOSS
-                total_loss = loss_q_temporal_difference
-                self.take_optimisation_step(self.optimizer1,self.network,total_loss, self.config.get_gradient_clipping_norm())
+                total_loss = loss_q_on_trajectory_mc
+                #! optimizer
+                self.take_optimisation_step(self.optimizer3,self.network,total_loss, self.config.get_gradient_clipping_norm())
 
-               
-        self.network.to(torch.device("cpu"))
-        self.episodes = self.episodes[:self.memory_size]
+
 
     ''' V(S) '''
     def learn_value_on_tree(self,episode):
@@ -210,6 +212,26 @@ class ALPHAZERO(Learning_Agent):
         loss = loss.mean()
         return loss
 
+    def learn_q_on_minimax_root(self,episode):
+        '!careful: it reloads the network'
+        self.network.load_observations(np.array(episode.episode_observations))
+        actions = torch.tensor(episode.episode_actions)
+        q_values = self.network.get_q_values()
+        q_values =  q_values[torch.arange(len(q_values)),actions]
+        '''minimax'''
+        value_estimation = Network_Q_Estimation(self.network,self.device)
+        tree_policy = Minimax(self.environment.environment,value_estimation,max_depth=2)
+        root_values = []
+        for obs in episode.episode_observations:
+            action_probs, info = tree_policy.play(obs)
+            root_values.append(info["root_node"].value)
+        q_targets = torch.tensor(root_values)
+        '''loss'''
+        loss = (q_values - q_targets)**2
+        loss = loss.mean()
+        return loss
+
+
     ''' P(S,A) '''
     def learn_policy_on_tree(self,episode):
         self.network.load_observations(np.array(episode.episode_observations))
@@ -265,8 +287,8 @@ class ALPHAZERO(Learning_Agent):
         self.episode_net_actions.append(self.net_action)
         #* vectors
         self.episode_expert_action_probability_vector.append(self.expert_action_probability_vector)
-        #self.episode_net_action_probability_vector.append(self.net_action_probability_vector)
-        self.episode_net_action_probability_vector.append(self.net_q_values)
+        self.episode_net_action_probability_vector.append(self.net_action_probability_vector)
+        #self.episode_net_action_probability_vector.append(self.net_q_values)
         #* action probability 
         #self.episode_expert_action_probabilities.append(self.expert_action_probability)
         #self.episode_expert_action_log_probabilities.append(self.expert_action_log_probability)
@@ -275,7 +297,7 @@ class ALPHAZERO(Learning_Agent):
         self.episode_expert_state_values.append(self.expert_state_value)
         #* save trajectories
         if self.done == True:
-             self.episodes.append(Episode_Tuple
+             self.add_episode_to_memory(Episode_Tuple
                 (self.episode_observations,
                 self.episode_masks,
                 self.episode_actions,
@@ -306,6 +328,20 @@ class ALPHAZERO(Learning_Agent):
         self.episode_expert_state_values = []
         #! CAREFUL
         self.environment.play_first = self.environment.play_first == False
+
+    """ memory """
+    def get_episode_batch(self,episode_batch=1,shuffle=True):
+        training_data = random.choices(self.episodes, k=episode_batch)
+        if shuffle:
+            random.shuffle(training_data)
+        return training_data
+        
+    def add_episode_to_memory(self,episode):
+        self.episodes.append(episode)
+        self.episodes = self.episodes[-self.memory_size:]
+
+    
+
         
 
     """""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
@@ -394,8 +430,8 @@ class ALPHAZERO(Learning_Agent):
 
         #* value estimation policy
         #expansion_st = All_Successors_Rollout(num_rollouts=1)
-        #expansion_st = Network_Successor_Q(self.network,self.device)
-        expansion_st = Network_Successor_V(self.network,self.device)
+        expansion_st = Network_Successor_Q(self.network,self.device)
+        #expansion_st = Network_Successor_V(self.network,self.device)
 
         #* tree policy
         tree_policy = Best_First_Minimax(env,expansion_st,num_iterations=iterations)
@@ -429,7 +465,9 @@ class ALPHAZERO(Learning_Agent):
 
             with torch.no_grad():
                 self.network.load_observations(np.expand_dims(observation,axis=0))
-                new_net_vector = self.network.get_policy_values(apply_softmax=True,mask=np.array([mask]))[0]
+                #new_net_vector = self.network.get_policy_values(apply_softmax=True,mask=np.array([mask]))[0]
+                #!
+                new_net_vector = self.network.get_q_values()[0]
                 new_state_value = self.network.get_state_value()[0]
 
             expert_vector_string = ["{0}=>{1:.4f}".format(i,expert_vector[i]) for i in range(len(expert_vector))]
