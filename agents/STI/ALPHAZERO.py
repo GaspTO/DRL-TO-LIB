@@ -19,14 +19,15 @@ from agents.search_agents.best_first_search.strategies.Evaluation_Strategy impor
 from agents.search_agents.best_first_search.Best_First_Search_Node import *
 from agents.search_agents.best_first_search.MCTS import *
 '''
-BEST-FIRST MINIMAX
-'''
-from agents.search_agents.best_first_search.Best_First_Minimax import *
-'''
 MINIMAX
 '''
 from agents.search_agents.depth_first_search.Minimax import *
 from agents.search_agents.depth_first_search.strategies.Value_Estimation_Strategy import *
+'''
+BEST-FIRST MINIMAX
+'''
+from agents.search_agents.best_first_search.Best_First_Minimax import *
+from agents.search_agents.best_first_search.K_Best_First_Minimax import * 
 
 
 
@@ -78,7 +79,9 @@ class ALPHAZERO(Learning_Agent):
         ''' Agents '''
         #self.expert_action, self.expert_action_probability_vector, self.expert_state_value = self.mcts_expert(self.observation,100,1,1.0)
         #self.expert_action, self.expert_action_probability_vector, self.expert_state_value = self.minimax_expert(self.observation,max_depth=2)
-        self.expert_action, self.expert_action_probability_vector, self.expert_state_value = self.best_first_minimax_expert(self.observation,iterations=100)
+        #self.expert_action, self.expert_action_probability_vector, self.expert_state_value = self.best_first_minimax_expert(self.observation,iterations=100)
+        self.expert_action, self.expert_action_probability_vector, self.expert_state_value = self.k_best_first_minimax_expert(self.observation,k=2,iterations=100)
+
         self.net_action, info = self.pick_action_policy()
         #self.net_action_probability_vector = info['probability_vector']
         self.net_state_value = info['state_value']
@@ -133,7 +136,7 @@ class ALPHAZERO(Learning_Agent):
 
                 ''' value '''
                 #loss_value_on_tree = self.learn_value_on_tree(episode)
-                #loss_value_on_trajectory = self.learn_value_on_trajectory(episode)
+                loss_value_on_trajectory = self.learn_value_on_trajectory(episode)
 
                 ''' policy '''
                 #loss_policy_on_tree = self.learn_policy_on_tree(episode)
@@ -141,15 +144,15 @@ class ALPHAZERO(Learning_Agent):
                 
                 ''' q '''
                 #* keep the temporal difference at last cause it reloads network
-                loss_q_on_trajectory_mc = self.learn_q_on_trajectory_monte_carlo(episode)
+                #loss_q_on_trajectory_mc = self.learn_q_on_trajectory_monte_carlo(episode)
                 #loss_q_temporal_difference = self.learn_q_on_temporal_difference(episode)
                 #loss_q_on_minimax_root = self.learn_q_on_minimax_root(episode)
 
 
                 #! ADD TOTAL LOSS
-                total_loss = loss_q_on_trajectory_mc
+                total_loss = loss_value_on_trajectory
                 #! optimizer
-                self.take_optimisation_step(self.optimizer3,self.network,total_loss, self.config.get_gradient_clipping_norm())
+                self.take_optimisation_step(self.optimizer1,self.network,total_loss, self.config.get_gradient_clipping_norm())
 
 
 
@@ -430,11 +433,30 @@ class ALPHAZERO(Learning_Agent):
 
         #* value estimation policy
         #expansion_st = All_Successors_Rollout(num_rollouts=1)
-        expansion_st = Network_Successor_Q(self.network,self.device)
-        #expansion_st = Network_Successor_V(self.network,self.device)
+        #expansion_st = Network_Successor_Q(self.network,self.device)
+        expansion_st = Network_Successor_V(self.network,self.device)
 
         #* tree policy
         tree_policy = Best_First_Minimax(env,expansion_st,num_iterations=iterations)
+
+        #!sampling
+        action_probs, info = tree_policy.play(observation)
+        root_node = info["root_node"]
+        action = action_probs.argmax()
+
+        return action, torch.FloatTensor(action_probs), torch.tensor([root_node.value])
+
+
+    def k_best_first_minimax_expert(self,observation,k,iterations):
+        env = self.environment.environment
+
+        #* value estimation policy
+        #expansion_st = All_Successors_Rollout(num_rollouts=1)
+        #expansion_st = Network_Successor_Q(self.network,self.device)
+        expansion_st = Network_Successor_V(self.network,self.device)
+
+        #* tree policy
+        tree_policy = K_Best_First_Minimax(env,expansion_st,k=k,num_iterations=iterations)
 
         #!sampling
         action_probs, info = tree_policy.play(observation)
