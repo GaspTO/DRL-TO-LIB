@@ -20,7 +20,7 @@ class K_Best_First_Minimax(Agent):
     def _minimax_search(self,root,num_iterations,debug=False):
         if root.is_terminal(): raise ValueError("shouldn't be terminal")
         for i in range(num_iterations):
-            k_nodes = self._find_best_unexpanded_node(root)
+            k_nodes = self._find_best_k_unexpanded_node(root)
             if len(k_nodes) == 0:
                 return
             else:
@@ -29,8 +29,8 @@ class K_Best_First_Minimax(Agent):
                     self._backtrack(node)
             pass
                 
-    def _find_best_unexpanded_node(self,node):
-        rnd = 0
+    def _find_best_k_unexpanded_node(self,node):
+        rnd = 0 #to avoid collisions in heapq
         queue = []
         k_nodes = []
         for i in range(self.k):

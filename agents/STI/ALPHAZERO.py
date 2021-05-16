@@ -39,8 +39,10 @@ class ALPHAZERO(Learning_Agent):
     agent_name = "ALPHAZERO"
     def __init__(self, config, expert = None):
         Learning_Agent.__init__(self, config)
+        #!device
+
         #!hidden nodes
-        self.network = self.config.architecture(18,9,1000).to(torch.device("cpu"))
+        self.network = self.config.architecture(18,9,1000)
         self.expert = expert
         #!OPTIMIZE
         self.optimizer1 = optim.Adam(self.network.parameters(), lr=2e-05)
@@ -82,7 +84,7 @@ class ALPHAZERO(Learning_Agent):
         #self.expert_action, self.expert_action_probability_vector, self.expert_state_value = self.best_first_minimax_expert(self.observation,iterations=100)
         self.expert_action, self.expert_action_probability_vector, self.expert_state_value = self.k_best_first_minimax_expert(self.observation,k=2,iterations=50)
 
-        self.net_action, info = self.pick_action_policy()
+        #self.net_action, info = self.pick_action_policy()
         #self.net_action_probability_vector = info['probability_vector']
         self.net_state_value = info['state_value']
         self.net_action_probability_vector = info['q_values']
@@ -91,30 +93,7 @@ class ALPHAZERO(Learning_Agent):
         self.next_observation, self.reward, self.done, _ = self.environment.step(self.action)
 
     
-    def pick_action_policy(self,current_observation=None,mask=None) -> tuple([int,dict]):
-        #todo this is a very unecessary method for efficiency. 
-        if current_observation is None: current_observation = self.observation
-        if mask is None: mask = self.mask
-        else: raise ValueError("Right now pick action can only use internal state")
-        #input_state = torch.from_numpy(current_observation).float().unsqueeze(0).to(torch.device("cpu"))
-        #input_mask = torch.from_numpy(self.mask).unsqueeze(0).to(self.device)
-        self.network.load_observations(np.expand_dims(current_observation, axis=0))
-        ''' policy '''
-        policy_values_logits = self.network.get_policy_values(False,np.array([mask]))
-        policy_values_softmax =  torch.softmax(policy_values_logits,dim=1)
-        #!sampling
-        #action_distribution = Categorical(policy_values_softmax) # this creates a distribution to sample from
-        #action = action_distribution.sample()
-        action = policy_values_softmax.argmax()
-        ''' state value '''
-        state_value = self.network.get_state_value()
-        '''' q values '''
-        q_values = self.network.get_q_values()
 
-        
-        return action.item(), {"action_probability": policy_values_softmax[0][action],
-            "action_log_probability":torch.log_softmax(policy_values_logits,dim=1)[0][action],
-            "logits": policy_values_logits[0], "probability_vector": policy_values_softmax[0], "state_value":state_value[0], "q_values":q_values[0]}
     
 
     
@@ -348,10 +327,37 @@ class ALPHAZERO(Learning_Agent):
         
 
     """""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
-    *                            EXPERT AGENTS                              
+    *                            AGENTS                              
     *            Main interface to be used by every implemented agent               
     """""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
-    
+
+    """""""""""""""
+    *  Network
+    """""""""""""""
+    def network_policy_actions(self,current_observation,mask):
+        self.network.load_observations(np.expand_dims(current_observation, axis=0))
+        policy_values_logits = self.network.get_policy_values(False,np.array([mask]))
+        policy_values_softmax =  torch.softmax(policy_values_logits,dim=1)
+        action = policy_values_softmax.argmax()
+        return action.item(), {"action_probability": policy_values_softmax[0][action],
+            "action_log_probability":torch.log_softmax(policy_values_logits,dim=1)[0][action],
+            "logits": policy_values_logits[0], "probability_vector": policy_values_softmax[0]}
+
+    def network_state_value(self,current_observation):
+        self.network.load_observations(np.expand_dims(current_observation, axis=0))
+        state_value = self.network.get_state_value()
+        return None, {"state_value":state_value[0]}
+
+    def network_q_values(self,current_observation):
+        self.network.load_observations(np.expand_dims(current_observation, axis=0))
+        q_values = self.network.get_q_values()
+        action = q_values.argmax()
+        return action, {"q_values":q_values[0]}
+        
+
+    """""""""""""""
+    *  Original MCTS
+    """""""""""""""
     def mcts_original(self,observation,n,exploration_weight):
         #todo some things in here need config
         search = MCTS_Agents.MCTS_Search(self.environment.environment,n,exploration_weight=exploration_weight)
@@ -366,6 +372,9 @@ class ALPHAZERO(Learning_Agent):
         return action,probs
 
 
+    """""""""""""""""
+    *  New Search agents
+    """""""""""""""
     def mcts_expert(self,observation,iterations,k,exploration_weight):
         env = self.environment.environment
 

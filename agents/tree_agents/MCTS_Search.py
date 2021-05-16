@@ -113,7 +113,8 @@ class MCTS_Search(Agent):
             log_N_vertex = log(self.current_node.num_chosen_by_parent)
             def uct(node):
                 assert node.num_chosen_by_parent == node.num_losses + node.num_draws + node.num_wins
-                opponent_losses = node.num_losses + 0.5 * node.num_draws
+                #!opponent_losses = node.num_losses + 0.5 * node.num_draws
+                opponent_losses = node.num_losses + -1*node.num_wins
                 return opponent_losses / node.num_chosen_by_parent + \
                     self.exploration_weight * sqrt(log_N_vertex / node.num_chosen_by_parent)
             return max(self.current_node.get_successors(), key=uct) 

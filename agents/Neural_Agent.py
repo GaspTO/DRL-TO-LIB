@@ -6,7 +6,7 @@ import os
 
 
 class Neural_Agent(nn.Module):
-    def __init__(self,device=None):
+    def __init__(self,device):
         super().__init__()
         self.device = device
         self.observations = None
