@@ -80,7 +80,7 @@ class ALPHAZERO(Learning_Agent):
         #self.expert_action, self.expert_action_probability_vector, self.expert_state_value = self.mcts_expert(self.observation,100,1,1.0)
         #self.expert_action, self.expert_action_probability_vector, self.expert_state_value = self.minimax_expert(self.observation,max_depth=2)
         #self.expert_action, self.expert_action_probability_vector, self.expert_state_value = self.best_first_minimax_expert(self.observation,iterations=100)
-        self.expert_action, self.expert_action_probability_vector, self.expert_state_value = self.k_best_first_minimax_expert(self.observation,k=2,iterations=100)
+        self.expert_action, self.expert_action_probability_vector, self.expert_state_value = self.k_best_first_minimax_expert(self.observation,k=2,iterations=50)
 
         self.net_action, info = self.pick_action_policy()
         #self.net_action_probability_vector = info['probability_vector']
