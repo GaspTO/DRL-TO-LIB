@@ -1,7 +1,5 @@
 from agents.Agent import Agent
-from agents.search_agents.best_first_search.strategies.Expansion_Strategy import Expansion_Strategy
-from agents.search_agents.best_first_search.strategies.Evaluation_Strategy import UCT, PUCT
-from agents.search_agents.best_first_search.Best_First_Search_Node import Best_First_Search_Node
+from agents.search_agents.mcts.MCTS_Node import MCTS_Node
 import numpy as np
 
 '''
@@ -9,18 +7,17 @@ Normal MCTS - with recursive calls
 Only works for 1 or 2 players
 '''
 class MCTS(Agent):
-    def __init__(self,environment,iterations,score_st,evaluation_st,expansion_st):
+    def __init__(self,environment,iterations,evaluation_st,expansion_st):
         Agent.__init__(self,environment)
         self.environment = environment
         self.iterations = iterations
-        self.score_st = score_st
         self.evaluation_st = evaluation_st
         self.expansion_st = expansion_st
         #* initialize root
 
     def play(self,observation=None,debug=False):
         if(observation is None): observation = self.environment.get_current_observation()
-        self.root = Best_First_Search_Node(self.environment,observation)
+        self.root = MCTS_Node(self.environment,observation)
         self.expansion_st.expand(self.root)
         for i in range(self.iterations):
             self._mcts_search(self.root,debug)
@@ -55,14 +52,18 @@ class MCTS(Agent):
             node = node.get_parent_node()
 
     def _get_action_probabilities(self,node):
+        def summarize(node):
+            if node.num_visits == 0:
+                return 0.  
+            return (node.num_visits) / node.get_parent_node().num_visits
         #the length of successors is not always the action_size 'cause invalid actions don't become successors
         action_probs = np.zeros(self.environment.get_action_size()) 
-        for n in self.root.get_successors():
-            action_probs[n.parent_action] = self.score_st.summarize(n)
+        for n in node.get_successors():
+            action_probs[n.parent_action] = summarize(n)
         # if a vector is full of zeros 
         if(action_probs.sum() == 0.):
-            for n in self.root.get_successors():
-                action_probs[n.parent_action] = 1/len(self.root.get_successors()) 
+            for n in node.get_successors():
+                action_probs[n.parent_action] = 1/len(node.get_successors()) 
         else:
             action_probs = action_probs/action_probs.sum()
             if len(np.where(action_probs < 0)[0]) != 0:

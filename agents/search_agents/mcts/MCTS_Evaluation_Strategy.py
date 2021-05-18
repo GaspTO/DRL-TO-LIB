@@ -1,11 +1,11 @@
 from math import sqrt, log
 
 """ Select Greedy Evaluation Function for Tree Policies"""
-class Evaluation_Strategy:
+class MCTS_Evaluation_Strategy:
     def evaluate(self,node):
         pass
 
-class Greedy(Evaluation_Strategy):
+class Greedy(MCTS_Evaluation_Strategy):
     ''' exploitation '''
     def Q(self,node):
         return -node.value
@@ -79,7 +79,7 @@ class PUCT(Greedy):
 
 
 
-class SAVE_PUCT(Evaluation_Strategy):
+class SAVE_PUCT(MCTS_Evaluation_Strategy):
     '''
     NEEDS:
         node.num_chosen_py_parent

@@ -34,24 +34,23 @@ from agents.search_agents.best_first_search.K_Best_First_Minimax import *
 
 
 Episode_Tuple = namedtuple('Episode_Tuple', ['episode_observations','episode_masks','episode_actions','episode_expert_actions','episode_net_actions','episode_expert_action_probability_vector','episode_rewards','episode_expert_state_values','episode_next_observations','episode_dones'])
+#Episode_Tuple = namedtuple('Episode_Tuple', ['episode_observations','episode_masks','episode_actions','episode_rewards','episode_next_observations','episode_dones','episode_expert_action_probability_vector','episode_expert_state_values'])
 
 class ALPHAZERO(Learning_Agent):
     agent_name = "ALPHAZERO"
     def __init__(self, config, expert = None):
         Learning_Agent.__init__(self, config)
         #!device
-
+        self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         #!hidden nodes
-        self.network = self.config.architecture(18,9,1000)
+        self.network = self.config.architecture(self.device,18,9,1000)
         self.expert = expert
         #!OPTIMIZE
         self.optimizer1 = optim.Adam(self.network.parameters(), lr=2e-05)
         self.optimizer2 = optim.Adam(self.network.parameters(), lr=2e-06)
         self.optimizer3 = optim.Adam(self.network.parameters(), lr=2e-08)
         self.optimizerSGD = optim.SGD(self.network.parameters(),lr=2e-07)
-        self.trajectories = []
-        self.dataset = []
-        self.mask_dataset = []
+
         self.episode_data = []
         self.episodes = []
         self.debug = False 
@@ -67,42 +66,28 @@ class ALPHAZERO(Learning_Agent):
     *                            MAIN INTERFACE                               
     *            Main interface to be used by every implemented agent               
     """""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
-    #TODO implement this
     def play(self,observations:np.array=None,policy=None,info=None) -> tuple([np.array,dict]):
         return NotImplementedError
 
-    """
-    Methods to Step:
-        * step
-        * pick action
-    """
     def step(self):
         self.start = time()
         ''' Agents '''
-        #self.expert_action, self.expert_action_probability_vector, self.expert_state_value = self.mcts_expert(self.observation,100,1,1.0)
-        #self.expert_action, self.expert_action_probability_vector, self.expert_state_value = self.minimax_expert(self.observation,max_depth=2)
-        #self.expert_action, self.expert_action_probability_vector, self.expert_state_value = self.best_first_minimax_expert(self.observation,iterations=100)
         self.expert_action, self.expert_action_probability_vector, self.expert_state_value = self.k_best_first_minimax_expert(self.observation,k=2,iterations=50)
 
-        #self.net_action, info = self.pick_action_policy()
-        #self.net_action_probability_vector = info['probability_vector']
-        self.net_state_value = info['state_value']
-        self.net_action_probability_vector = info['q_values']
+       
+        self.net_action, info = self.network_policy_actions(self.observation,self.mask)
+        self.net_action_probability_vector = info['probability_vector']
+        self.net_state_value = self.network_state_value(self.observation)[1]['state_value']
+    
         #! EXPERT
-        self.action = self.expert_action
-        self.next_observation, self.reward, self.done, _ = self.environment.step(self.action)
-
-    
-
-    
-
-    
+        self.next_observation, self.reward, self.done, _ = self.environment.step(self.expert_action)
 
 
     """""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
     *                            LEARNING METHODS     
     *                       Learning on Trajectories                                 
     """""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
+    ''' standard learn '''
     def time_to_learn(self):
         return self.done and self.episode_number % self.update_on_episode == 0 and self.episode_number != 0
 
@@ -132,8 +117,6 @@ class ALPHAZERO(Learning_Agent):
                 total_loss = loss_value_on_trajectory
                 #! optimizer
                 self.take_optimisation_step(self.optimizer1,self.network,total_loss, self.config.get_gradient_clipping_norm())
-
-
 
     ''' V(S) '''
     def learn_value_on_tree(self,episode):
@@ -213,7 +196,6 @@ class ALPHAZERO(Learning_Agent):
         loss = loss.mean()
         return loss
 
-
     ''' P(S,A) '''
     def learn_policy_on_tree(self,episode):
         self.network.load_observations(np.array(episode.episode_observations))
@@ -223,7 +205,6 @@ class ALPHAZERO(Learning_Agent):
         target_policy_values =torch.cat(episode.episode_expert_action_probability_vector)
         loss = -1 * target_policy_values.dot(network_log_policy_values)
         return loss
-
 
     def learn_policy_on_trajectory_reinforce(self,episode,discount_rate=1):
         self.network.load_observations(np.array(episode.episode_observations))
@@ -261,6 +242,7 @@ class ALPHAZERO(Learning_Agent):
     *                      EPISODE/STEP DATA MANAGEMENT        
     *                   Manages step, episode and reset data                                   
     """""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
+    '''episode '''
     def save_step_info(self):
         super().save_step_info()
         #* actions
@@ -293,9 +275,7 @@ class ALPHAZERO(Learning_Agent):
 
     def end_episode(self):
         super().end_episode()
-        self.log_updated_probabilities(print_results=self.debug)
-       
-       # ['episode_observations','episode_masks','episode_actions','episode_expert_actions','episode_expert_action_tree_probs','episode_rewards'])
+        #!self.log_updated_probabilities(print_results=self.debug)
 
     def reset(self):
         super().reset()
@@ -311,7 +291,7 @@ class ALPHAZERO(Learning_Agent):
         #! CAREFUL
         self.environment.play_first = self.environment.play_first == False
 
-    """ memory """
+    ''' memory '''
     def get_episode_batch(self,episode_batch=1,shuffle=True):
         training_data = random.choices(self.episodes, k=episode_batch)
         if shuffle:
@@ -322,18 +302,12 @@ class ALPHAZERO(Learning_Agent):
         self.episodes.append(episode)
         self.episodes = self.episodes[-self.memory_size:]
 
-    
-
-        
 
     """""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
     *                            AGENTS                              
     *            Main interface to be used by every implemented agent               
     """""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
-
-    """""""""""""""
-    *  Network
-    """""""""""""""
+    ''' Network '''
     def network_policy_actions(self,current_observation,mask):
         self.network.load_observations(np.expand_dims(current_observation, axis=0))
         policy_values_logits = self.network.get_policy_values(False,np.array([mask]))
@@ -354,10 +328,7 @@ class ALPHAZERO(Learning_Agent):
         action = q_values.argmax()
         return action, {"q_values":q_values[0]}
         
-
-    """""""""""""""
-    *  Original MCTS
-    """""""""""""""
+    ''' Original MCTS '''
     def mcts_original(self,observation,n,exploration_weight):
         #todo some things in here need config
         search = MCTS_Agents.MCTS_Search(self.environment.environment,n,exploration_weight=exploration_weight)
@@ -371,10 +342,7 @@ class ALPHAZERO(Learning_Agent):
         probs = search.probs
         return action,probs
 
-
-    """""""""""""""""
-    *  New Search agents
-    """""""""""""""
+    ''' New Search agents '''
     def mcts_expert(self,observation,iterations,k,exploration_weight):
         env = self.environment.environment
 
@@ -413,7 +381,6 @@ class ALPHAZERO(Learning_Agent):
 
         return action, torch.FloatTensor(action_probs), torch.tensor([root_node.total_value/root_node.num_visits])
         
-
     def minimax_expert(self,observation,max_depth):
         env = self.environment.environment
 
@@ -436,7 +403,6 @@ class ALPHAZERO(Learning_Agent):
 
         return action, torch.FloatTensor(action_probs), torch.tensor([root_node.value])
         
-
     def best_first_minimax_expert(self,observation,iterations):
         env = self.environment.environment
 
@@ -454,7 +420,6 @@ class ALPHAZERO(Learning_Agent):
         action = action_probs.argmax()
 
         return action, torch.FloatTensor(action_probs), torch.tensor([root_node.value])
-
 
     def k_best_first_minimax_expert(self,observation,k,iterations):
         env = self.environment.environment
@@ -478,6 +443,7 @@ class ALPHAZERO(Learning_Agent):
     """""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
     *                            Other Methods...             
     """""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
+    
     def log_updated_probabilities(self,print_results=False):
         r = self.reward
         full_text = []
@@ -496,8 +462,6 @@ class ALPHAZERO(Learning_Agent):
 
             with torch.no_grad():
                 self.network.load_observations(np.expand_dims(observation,axis=0))
-                #new_net_vector = self.network.get_policy_values(apply_softmax=True,mask=np.array([mask]))[0]
-                #!
                 new_net_vector = self.network.get_q_values()[0]
                 new_state_value = self.network.get_state_value()[0]
 
@@ -506,6 +470,10 @@ class ALPHAZERO(Learning_Agent):
             new_net_vector_string = ["{0}=>{1:.4f}".format(i,new_net_vector[i]) for i in range(len(new_net_vector))]
             modified_observation = observation[0] + -1*observation[1]
             
+
+            reward_txt = "reward \t{0: .2f} \n".format(reward)
+            action_txt = "agent_action: \t{1: 2d} \n".format(action)
+
 
             text = "reward \t{0: .2f} \n \
             agent_action: \t{1: 2d} \n \
@@ -535,6 +503,5 @@ class ALPHAZERO(Learning_Agent):
             full_text.append(formatted_text)
         self.logger.info("Updated probabilities and Loss After update:\n" + ''.join(full_text))
     
-
 
 

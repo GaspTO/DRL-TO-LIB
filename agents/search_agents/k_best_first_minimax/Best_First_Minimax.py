@@ -1,5 +1,5 @@
 from agents.Agent import Agent
-from agents.search_agents.best_first_search.Best_First_Search_Node import Best_First_Search_Node
+from agents.search_agents.best_first_minimax.Best_First_Minimax_Node import Best_First_Search_Node
 import torch
 import numpy as np
 
@@ -63,7 +63,7 @@ class Best_First_Minimax(Agent):
                 action_probs[n.get_parent_action()] = 1
         action_probs = action_probs * (1/num_max_values)
         
-        if action_probs.sum().item() > 1:
-            print("ups")
+        assert not action_probs.sum().item() > 1
+            
         return action_probs
         

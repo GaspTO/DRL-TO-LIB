@@ -1,5 +1,0 @@
-
-
-
-class Search_Method():
-    

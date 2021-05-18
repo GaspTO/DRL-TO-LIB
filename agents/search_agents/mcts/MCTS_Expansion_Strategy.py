@@ -6,7 +6,7 @@ import random
 
 
 """ Expand """
-class Expansion_Strategy:
+class MCTS_Expansion_Strategy:
     def __init__(self):
         pass
 
@@ -34,7 +34,7 @@ class Expansion_Strategy:
 Handles total_visits through rollout estimate
 Handles total_value
 '''
-class One_Successor_Rollout(Expansion_Strategy):
+class MCTS_One_Successor_Rollout(MCTS_Expansion_Strategy):
     '''
         NO POLICY BIAS.
         EVERY expand CALL CREATES ONLY ONE SUCCESSOR, WHOSE NODE.total_value IS ESTIMATED BY A RANDOM ROLLOUT
@@ -61,7 +61,7 @@ class One_Successor_Rollout(Expansion_Strategy):
         return accumulated_reward/self.num_rollouts
 
 
-class Network_Value(Expansion_Strategy):
+class MCTS_Network_Value(MCTS_Expansion_Strategy):
     '''
         NO POLICY BIAS
         STATE ESTIMATE IS DONE USING NETWORK
@@ -88,7 +88,7 @@ class Network_Value(Expansion_Strategy):
 """
 THIS IS THE MCTS RL
 """
-class Network_Policy_One_Successor_Rollout(One_Successor_Rollout):
+class MCTS_Network_Policy_One_Successor_Rollout(MCTS_One_Successor_Rollout):
     '''
         NETWORK POLICY BIAS (NODE.exploration_bias)
         AFTER EXPANDING, CHOOSES ONE RANDOM NODE AND DOES RANDOM ROLLOUT TO ESTIMATE ITS VALUE
@@ -113,7 +113,7 @@ class Network_Policy_One_Successor_Rollout(One_Successor_Rollout):
 
 
 
-class Network_Policy_Value(Expansion_Strategy):
+class MCTS_Network_Policy_Value(MCTS_Expansion_Strategy):
     '''
         NETWORK POLICY BIAS (NODE.exploration_bias)
         EACH EXPANSION GENERATES ALL SUCCESSORS. EVERY SUCCESSOR RECEIVE A POLICY BIAS.
@@ -142,102 +142,4 @@ class Network_Policy_Value(Expansion_Strategy):
             estimate = self.network.get_state_value()
         return estimate
     
-
-
-''' BEST FIRST MINIMAX '''
-
-''' For successors, no exploration bias '''
-class All_Successors_Rollout(Expansion_Strategy):
-    '''
-        NO POLICY BIAS.
-        EVERY expand CALL CREATES ONLY ONE SUCCESSOR, WHOSE NODE.total_value IS ESTIMATED BY A RANDOM ROLLOUT
-    '''
-    def __init__(self,num_rollouts=1):
-        super().__init__()
-        self.num_rollouts = num_rollouts
-
-    def _instanciate_successors(self,node):
-        node.expand_rest_successors()
-        for n in node.get_successors():
-            n.value = self._rollout(n)
-
-    def _estimate_node(self, node):
-        return None
-       
-    #* returns the value of subtree total reward from the prespective of succ_node
-    def _rollout(self,node):
-        accumulated_reward = 0.
-        for i in range(self.num_rollouts):
-            rollout_node = node
-            while not rollout_node.is_terminal():
-                parent_player = rollout_node.get_player()
-                rollout_node = rollout_node.find_random_successor()
-                if node.get_player() == parent_player:
-                    accumulated_reward += rollout_node.get_parent_reward()
-                else:
-                    accumulated_reward += -1*rollout_node.get_parent_reward()
-        return accumulated_reward/self.num_rollouts
-
-class Network_Successor_Q(Expansion_Strategy):
-    '''
-        NETWORK POLICY BIAS (NODE.exploration_bias)
-        EACH EXPANSION GENERATES ALL SUCCESSORS. EVERY SUCCESSOR RECEIVE A POLICY BIAS.
-        AND THE NODE EXPANDED RECEIVES A NODE.total_value ESTIMATION.
-    '''
-    def __init__(self,network,device):
-        super().__init__()
-        self.network = network
-        self.device = device
-
-    def expand(self,node):
-        current_board = node.get_current_observation()
-        with torch.no_grad():
-            self.network.load_observations(np.array([current_board]))
-        estimate = super().expand(node)
-        return estimate
-
-    def _instanciate_successors(self,node):
-        child_nodes = node.expand_rest_successors()
-        with torch.no_grad():
-            q_values = self.network.get_q_values()
-            for node_child in child_nodes:
-                if node_child.is_terminal():
-                    node_child.value = 0
-                else:
-                    node_child.value = q_values[0][node_child.parent_action].item()
-
-    def _estimate_node(self, node):        
-        return None
-    
-class Network_Successor_V(Expansion_Strategy):
-    '''
-        NETWORK POLICY BIAS (NODE.exploration_bias)
-        EACH EXPANSION GENERATES ALL SUCCESSORS. EVERY SUCCESSOR RECEIVE A POLICY BIAS.
-        AND THE NODE EXPANDED RECEIVES A NODE.total_value ESTIMATION.
-    '''
-    def __init__(self,network,device):
-        super().__init__()
-        self.network = network
-        self.device = device
-
-    def expand(self,node):
-        current_board = node.get_current_observation()
-        estimate = super().expand(node)
-        return estimate
-
-    def _instanciate_successors(self,node):
-        child_nodes = node.expand_rest_successors()
-        with torch.no_grad():
-            for node_child in child_nodes:
-                self.network.load_observations(np.array([node_child.get_current_observation()]))
-                state_value = self.network.get_state_value()
-                if node_child.is_terminal():
-                    node_child.value = 0
-                else:
-                    node_child.value = state_value
-
-    def _estimate_node(self, node):        
-        return None
-    
-
 

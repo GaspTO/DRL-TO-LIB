@@ -7,7 +7,7 @@ import random
 #! tip: why not have a hash table with values working as a cache?
 
 """ Expand """
-class Value_Estimation_Strategy:
+class Minimax_Value_Estimation_Strategy:
     def __init__(self):
         self.parent_node = None
 
@@ -21,7 +21,7 @@ class Value_Estimation_Strategy:
 Handles total_visits through rollout estimate
 Handles total_value
 '''
-class Random_Rollout_Estimation(Value_Estimation_Strategy):
+class Random_Rollout_Estimation(Minimax_Value_Estimation_Strategy):
     '''
         NO POLICY BIAS.
         EVERY expand CALL CREATES ONLY ONE SUCCESSOR, WHOSE NODE.total_value IS ESTIMATED BY A RANDOM ROLLOUT
@@ -48,7 +48,7 @@ class Random_Rollout_Estimation(Value_Estimation_Strategy):
 
 
 
-class Network_Value_Estimation(Value_Estimation_Strategy):
+class Network_Value_Estimation(Minimax_Value_Estimation_Strategy):
     '''
         NO POLICY BIAS
         STATE ESTIMATE IS DONE USING NETWORK
@@ -69,7 +69,7 @@ class Network_Value_Estimation(Value_Estimation_Strategy):
             return estimate
 
 
-class Network_Q_Estimation(Value_Estimation_Strategy):
+class Network_Q_Estimation(Minimax_Value_Estimation_Strategy):
     '''
         NO POLICY BIAS
         STATE ESTIMATE IS DONE USING NETWORK BUT IT NEEDS TO BE LOADED WHEN PASSED IN __init__
