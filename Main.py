@@ -49,7 +49,8 @@ from agents.tree_agents.DAGGER import DAGGER
 '''
 STI
 '''
-from agents.STI.ALPHAZERO import ALPHAZERO
+from agents.tree_dual_policy_iteration.Tree_Dual_Policy_Iteration import Tree_Dual_Policy_Iteration
+from agents.tree_dual_policy_iteration.TDPI_Terminal_Learning import TDPI_Terminal_Learning
 '''
 ASTAR
 '''
@@ -67,8 +68,6 @@ print("seed=" + str(seed))
 config = Config()
 config.debug_mode = True
 config.environment = Custom_K_Row(board_shape=3, target_length=3)
-#config.environment = Simple_Playground_Env(K_Row_Interface(board_shape=3, target_length=3))
-#config.environment = Simple_Self_Play(episodes_to_update=100,environment=config.enviroig.environment
 config.file_to_save_data_results = "results/data_and_graphs/Cart_Pole_Results_Data.pkl"
 config.file_to_save_results_graph = "results/data_and_graphs/Cart_Pole_Results_Graph.png"
 config.hyperparameters = None
@@ -85,7 +84,6 @@ config.show_solution_score = False
 config.standard_deviation_results = 1.0
 config.use_GPU = False
 
-
 """ Config_Learning_Agent """
 config_Learning_Agent = Config_Learning_Agent(config)
 config_Learning_Agent.batch_size = 16
@@ -97,6 +95,7 @@ config_Learning_Agent.output_size = None
 config_Learning_Agent.is_mask_needed = True
 config.random_episodes_to_run = 0
 config.epsilon_decay_rate_denominator = 1
+
 
 """ Config_Reinforce """
 config_reinforce = Config_Reinforce(config_Learning_Agent)
@@ -149,15 +148,15 @@ config_reinforce.environment = Custom_Simple_Playground(config.environment,play_
 #agent = DDQN(config_DDQN)
 #agent = DDQN_krow(config_DDQN)
 #agent = A3C(config_A3C) 
-
-
-
 #agent = DAGGER(config_reinforce)
-   
-agent = ALPHAZERO(config_reinforce)
-#agent = NEW_DAGGER_REINFORCE(config_reinforce) #! <---
-#agent = ASTAR_DAGGER(config_reinforce)
-torch.autograd.set_detect_anomaly(True)
+
+
+
+
+#agent = Tree_Dual_Policy_Iteration(config_reinforce)
+agent = TDPI_Terminal_Learning(config_reinforce)
+
+#torch.autograd.set_detect_anomaly(True)
 #config_reinforce.environment.add_agent(MCTS_Simple_RL_Agent(config_reinforce.environment.environment,n_iterations=100,network=agent.policy,device=agent.device))
 config_reinforce.environment.add_agent(MCTS_Search(config_reinforce.environment.environment,n_iterations=100))
 game_scores, rolling_scores, time_taken = agent.run_n_episodes(num_episodes=100000)

@@ -130,8 +130,8 @@ class Policy_Value_MLP(Neural_Agent):
 
 
 class Parallel_MLP(Neural_Agent):
-    def __init__(self,input_size=18,action_size=9,hidden_nodes=300):
-        super().__init__()
+    def __init__(self,device,input_size=18,action_size=9,hidden_nodes=300):
+        super().__init__(device)
 
         self.pnet = nn.Sequential(
             nn.Flatten(start_dim=1),

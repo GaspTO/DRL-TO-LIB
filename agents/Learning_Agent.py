@@ -118,16 +118,17 @@ class Learning_Agent(Agent):
         self.rolling_results = []
         self.max_rolling_score_seen = float("-inf")
         self.max_episode_score_seen = float("-inf")
-        self.episode_number = 0
         self.device = "cuda" if config.get_use_GPU() else "cpu"
         self.visualise_results_boolean = config.visualise_individual_results
-        self.global_step_number = 0
         self.turn_off_exploration = False
         gym.logger.set_level(40)  
         self.log_game_info()
+        #* 
+        self.episode_number = 0
+        self.global_step_number = 0
 
+                
 
-        
     """""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
     *                            MAIN INTERFACE                               
     *            Main interface to be used by every implemented agent               
@@ -228,8 +229,6 @@ class Learning_Agent(Agent):
         if "exploration_strategy" in self.__dict__.keys(): self.exploration_strategy.reset()
         
 
-
-
     """""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
     *                            AUXILIARY METHODS 
     * Methods that are often used by several agents, although not necessary in
@@ -305,24 +304,7 @@ class Learning_Agent(Agent):
         self.turn_off_exploration = True
 
 
-    ''' Replay Memory Storage Methods '''
-    def sample_transitions(self):
-        """Draws a random sample of transitions from the memory buffer"""
-        transitions = self.memory.sample()
-        observation, actions, rewards, next_observation, dones = transitions
-        return observation, actions, rewards, next_observation, dones
-
-    def save_transition(self, memory=None, transition=None):
-        """Saves the recent transition to the memory buffer"""
-        if memory is None: memory = self.memory
-        if transition is None: transition = self.observation, self.action, self.reward, self.next_observation, self.done
-        memory.add_transition(*transition)
-
-    def enough_transitions_to_learn_from(self):
-        """Boolean indicated whether there are enough transitions in the memory buffer to learn from"""
-        return len(self.memory) > self.config.get_batch_size()
-
-
+    
     ''' Logging '''
     def setup_logger(self):
         self.logger = logger
