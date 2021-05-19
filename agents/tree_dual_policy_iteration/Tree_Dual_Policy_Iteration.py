@@ -29,7 +29,7 @@ from agents.search_agents.k_best_first_minimax.K_Best_First_Minimax_Expansion_St
 class Config_Tree_Dual_Policy_Iteration(Config_Learning_Agent):
     def __init__(self,config=None):
         super().__init__(config)
-        if(isinstance(config,Config_Learning_Agent)):
+        if(isinstance(config,Config_Tree_Dual_Policy_Iteration)):
             self.update_on_episode = config.get_update_on_episode()
             self.learn_epochs = config.get_learn_epochs()
             self.max_episode_memory = config.get_max_episode_memory()
@@ -63,7 +63,7 @@ class Config_Tree_Dual_Policy_Iteration(Config_Learning_Agent):
         return self.num_transitions_to_sample
     
     
-    
+
 class Tree_Dual_Policy_Iteration(Learning_Agent):
     agent_name = "Tree_Dual_Policy_Iteration"
     def __init__(self, config):

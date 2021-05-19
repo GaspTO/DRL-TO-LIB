@@ -99,7 +99,7 @@ config.epsilon_decay_rate_denominator = 1
 
 """ Config_Tree_Dual_Policy_Iteration """
 config_tree_dual_policy_iteration = Config_Tree_Dual_Policy_Iteration(config_Learning_Agent)
-config_tree_dual_policy_iteration.  update_on_episode = 100
+config_tree_dual_policy_iteration.update_on_episode = 100
 config_tree_dual_policy_iteration.learn_epochs = 5 
 config_tree_dual_policy_iteration.max_episode_memory = 500
 config_tree_dual_policy_iteration.num_episodes_to_sample = 100
