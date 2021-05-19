@@ -65,6 +65,7 @@ class TDPI_Terminal_Learning(Tree_Dual_Policy_Iteration):
         transitions_to_train = self.get_transition_batch(samples=self.num_transitions_to_sample)
         transition_batch = []
         for _ in range(self.learn_epochs):
+            #! use split
             for transition in transitions_to_train:
                 transition_batch.append(transition)
                 if len(transition_batch) == self.batch_size:

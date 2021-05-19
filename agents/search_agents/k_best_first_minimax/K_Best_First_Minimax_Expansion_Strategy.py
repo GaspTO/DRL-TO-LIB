@@ -91,17 +91,18 @@ class K_Best_First_Network_Successor_V(K_Best_First_Minimax_Expansion_Strategy):
                     observations.append(child.get_current_observation())
 
         #* run network and add values to a list
-        observations = torch.tensor(observations)
-        for x in torch.split(observations,self.batch_size):
-            with torch.no_grad():
-                state_values = self.network.load_observations(x.numpy()).get_state_value()
-                child_nodes_state_values.extend(state_values)
-    
-        #* put those results in the appropriate child nodes
-        assert len(child_nodes_queue) == len(child_nodes_state_values)
-        for i in range(len(child_nodes_queue)):
-            child_nodes_queue[i].value = child_nodes_state_values[i].item()
-            child_nodes_queue[i].non_terminal_value = child_nodes_queue[i].value
+        if len(child_nodes_queue) > 0:
+            observations = torch.tensor(observations)
+            for x in torch.split(observations,self.batch_size):
+                with torch.no_grad():
+                    state_values = self.network.load_observations(x.numpy()).get_state_value()
+                    child_nodes_state_values.extend(state_values)
+        
+            #* put those results in the appropriate child nodes
+            assert len(child_nodes_queue) == len(child_nodes_state_values)
+            for i in range(len(child_nodes_queue)):
+                child_nodes_queue[i].value = child_nodes_state_values[i].item()
+                child_nodes_queue[i].non_terminal_value = child_nodes_queue[i].value
     
 
 

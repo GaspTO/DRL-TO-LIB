@@ -159,7 +159,7 @@ agent = TDPI_Terminal_Learning(config_reinforce)
 #torch.autograd.set_detect_anomaly(True)
 #config_reinforce.environment.add_agent(MCTS_Simple_RL_Agent(config_reinforce.environment.environment,n_iterations=100,network=agent.policy,device=agent.device))
 config_reinforce.environment.add_agent(MCTS_Search(config_reinforce.environment.environment,n_iterations=100))
-game_scores, rolling_scores, time_taken = agent.run_n_episodes(num_episodes=100000)
+game_scores, rolling_scores, time_taken = agent.run_n_episodes(num_episodes=10000)
 #todo these algorithms don't put new tensors on gpu if asked
 #todo need to creat configs
 #todo actions should be tensors and not integers

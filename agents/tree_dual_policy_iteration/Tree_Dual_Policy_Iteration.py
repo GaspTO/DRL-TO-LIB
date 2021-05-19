@@ -36,12 +36,13 @@ class Tree_Dual_Policy_Iteration(Learning_Agent):
         Learning_Agent.__init__(self, config)
 
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
         self.network = self.config.architecture(self.device,18,9,1000)
         self.optimizer = optim.Adam(self.network.parameters(), lr=2e-05,weight_decay=1e-5)
 
         self.update_on_episode = 100
         self.learn_epochs = 5 
-        self.batch_size = 6
+        self.batch_size = 1
 
         self.episodes = []
         self.max_episode_memory = 500 #1
@@ -167,27 +168,6 @@ class Tree_Dual_Policy_Iteration(Learning_Agent):
         loss = loss.mean()
         return loss
 
-    """
-    def learn_q_on_minimax_root(self,episode):
-        '!careful: it reloads the network'
-        self.network.load_observations(np.array(episode.episode_observations))
-        actions = torch.tensor(episode.episode_actions)
-        q_values = self.network.get_q_values()
-        q_values =  q_values[torch.arange(len(q_values)),actions]
-        '''minimax'''
-        value_estimation = Network_Q_Estimation(self.network,self.device)
-        tree_policy = Minimax(self.environment.environment,value_estimation,max_depth=2)
-        root_values = []
-        for obs in episode.episode_observations:
-            action_probs, info = tree_policy.play(obs)
-            root_values.append(info["root_node"].value)
-        q_targets = torch.tensor(root_values)
-        '''loss'''
-        loss = (q_values - q_targets)**2
-        loss = loss.mean()
-        return loss
-    """
-
     ''' P(S,A) '''
     def learn_policy_on_tree(self,episode):
         self.network.load_observations(np.array(episode.episode_observations))
@@ -290,13 +270,9 @@ class Tree_Dual_Policy_Iteration(Learning_Agent):
         tree_policy = MCTS(env,iterations,evaluation_st=tree_evaluation,expansion_st=tree_expansion)
         
         #!
-        #random.setstate((3,tuple(range(625)),None))
         action_probs, info = tree_policy.play(observation)
         root_node = info["root_node"]
 
-        #!sampling
-        #action_distribution = Categorical(torch.tensor(action_probs)) # this creates a distribution to sample from
-        #action = action_distribution.sample()
         action = action_probs.argmax()
 
         return action, torch.FloatTensor(action_probs), torch.tensor([root_node.total_value/root_node.num_visits])
@@ -323,33 +299,14 @@ class Tree_Dual_Policy_Iteration(Learning_Agent):
 
         return action, torch.FloatTensor(action_probs), torch.tensor([root_node.value])
     
-    '''
-    def best_first_minimax_expert(self,observation,iterations):
-        env = self.environment.environment
-
-        #* value estimation policy
-        #expansion_st = All_Successors_Rollout(num_rollouts=1)
-        #expansion_st = Network_Successor_Q(self.network,self.device)
-        expansion_st = Network_Successor_V(self.network,self.device)
-
-        #* tree policy
-        tree_policy = Best_First_Minimax(env,expansion_st,num_iterations=iterations)
-
-        #!sampling
-        action_probs, info = tree_policy.play(observation)
-        root_node = info["root_node"]
-        action = action_probs.argmax()
-
-        return action, torch.FloatTensor(action_probs), torch.tensor([root_node.value])
-    '''
 
     def k_best_first_minimax_expert(self,observation,k,iterations):
         env = self.environment.environment
 
         #* value estimation policy
-        expansion_st = K_Best_First_All_Successors_Rollout(num_rollouts=1)
+        #expansion_st = K_Best_First_All_Successors_Rollout(num_rollouts=1)
         #expansion_st = K_Best_First_Network_Successor_Q(self.network,self.device)
-        #expansion_st = K_Best_First_Network_Successor_V(self.network,self.device)
+        expansion_st = K_Best_First_Network_Successor_V(self.network,self.device,batch_size=self.batch_size)
 
         #* tree policy
         tree_policy = K_Best_First_Minimax(env,expansion_st,k=k,num_iterations=iterations)
