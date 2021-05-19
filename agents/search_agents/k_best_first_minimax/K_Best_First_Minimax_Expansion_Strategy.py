@@ -69,7 +69,7 @@ class K_Best_First_Network_Successor_V(K_Best_First_Minimax_Expansion_Strategy):
         EACH EXPANSION GENERATES ALL SUCCESSORS. EVERY SUCCESSOR RECEIVE A POLICY BIAS.
         AND THE NODE EXPANDED RECEIVES A NODE.total_value ESTIMATION.
     '''
-    def __init__(self,network,device,batch_size=1):
+    def __init__(self,network,device,batch_size=None):
         super().__init__()
         self.network = network
         self.device = device
@@ -93,7 +93,13 @@ class K_Best_First_Network_Successor_V(K_Best_First_Minimax_Expansion_Strategy):
         #* run network and add values to a list
         if len(child_nodes_queue) > 0:
             observations = torch.tensor(observations)
-            for x in torch.split(observations,self.batch_size):
+            
+            if self.batch_size is not None:
+                observations = torch.split(observations,self.batch_size)
+            else:
+                observations = observations.unsqueeze(0)
+
+            for x in observations:
                 with torch.no_grad():
                     state_values = self.network.load_observations(x.numpy()).get_state_value()
                     child_nodes_state_values.extend(state_values)

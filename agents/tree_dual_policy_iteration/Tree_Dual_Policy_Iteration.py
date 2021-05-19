@@ -12,10 +12,9 @@ import random
 ''' 
 MCTS
 '''
+from agents.search_agents.mcts.MCTS import MCTS
 from agents.search_agents.mcts.MCTS_Evaluation_Strategy import *
 from agents.search_agents.mcts.MCTS_Expansion_Strategy import *
-from agents.search_agents.mcts.MCTS_Node import MCTS_Node
-from agents.search_agents.mcts.MCTS import MCTS
 '''
 MINIMAX
 '''
@@ -24,12 +23,47 @@ from agents.search_agents.minimax.Minimax_Value_Estimation_Strategy import *
 '''
 BEST-FIRST MINIMAX
 '''
-#from agents.search_agents.best_first_minimax.Best_First_Minimax import Best_First_Minimax
 from agents.search_agents.k_best_first_minimax.K_Best_First_Minimax import K_Best_First_Minimax
 from agents.search_agents.k_best_first_minimax.K_Best_First_Minimax_Expansion_Strategy import *
 
+class Config_Tree_Dual_Policy_Iteration(Config_Learning_Agent):
+    def __init__(self,config=None):
+        super().__init__(config)
+        if(isinstance(config,Config_Learning_Agent)):
+            self.update_on_episode = config.get_update_on_episode()
+            self.learn_epochs = config.get_learn_epochs()
+            self.max_episode_memory = config.get_max_episode_memory()
+            self.num_episodes_to_sample = config.get_num_episodes_to_sample()
+            self.max_transition_memory = config.get_max_transition_memory()
+            self.num_transitions_to_sample = config.get_num_transitions_to_sample()
+        else:
+            self.update_on_episode = 100
+            self.learn_epochs = 5 
+            self.max_episode_memory = 500 #1
+            self.num_episodes_to_sample = 100
+            self.max_transition_memory = 1500
+            self.num_transitions_to_sample = 300
 
+    def get_update_on_episode(self):
+        return self.update_on_episode
 
+    def get_learn_epochs(self):
+        return self.learn_epochs
+        
+    def get_max_episode_memory(self):
+        return self.max_episode_memory
+    
+    def get_num_episodes_to_sample(self):
+        return self.num_episodes_to_sample
+
+    def get_max_transition_memory(self):
+        return self.max_transition_memory
+
+    def get_num_transitions_to_sample(self):
+        return self.num_transitions_to_sample
+    
+    
+    
 class Tree_Dual_Policy_Iteration(Learning_Agent):
     agent_name = "Tree_Dual_Policy_Iteration"
     def __init__(self, config):
@@ -37,7 +71,8 @@ class Tree_Dual_Policy_Iteration(Learning_Agent):
 
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-        self.network = self.config.architecture(self.device,18,9,1000)
+        #self.network = self.config.architecture(self.device,18,9,1000)
+        self.network = self.config.architecture(self.device,3,3,128)
         self.optimizer = optim.Adam(self.network.parameters(), lr=2e-05,weight_decay=1e-5)
 
         self.update_on_episode = 100
@@ -306,7 +341,7 @@ class Tree_Dual_Policy_Iteration(Learning_Agent):
         #* value estimation policy
         #expansion_st = K_Best_First_All_Successors_Rollout(num_rollouts=1)
         #expansion_st = K_Best_First_Network_Successor_Q(self.network,self.device)
-        expansion_st = K_Best_First_Network_Successor_V(self.network,self.device,batch_size=self.batch_size)
+        expansion_st = K_Best_First_Network_Successor_V(self.network,self.device)
 
         #* tree policy
         tree_policy = K_Best_First_Minimax(env,expansion_st,k=k,num_iterations=iterations)

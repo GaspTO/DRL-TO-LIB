@@ -49,7 +49,7 @@ from agents.tree_agents.DAGGER import DAGGER
 '''
 STI
 '''
-from agents.tree_dual_policy_iteration.Tree_Dual_Policy_Iteration import Tree_Dual_Policy_Iteration
+from agents.tree_dual_policy_iteration.Tree_Dual_Policy_Iteration import Config_Tree_Dual_Policy_Iteration, Tree_Dual_Policy_Iteration
 from agents.tree_dual_policy_iteration.TDPI_Terminal_Learning import TDPI_Terminal_Learning
 '''
 ASTAR
@@ -89,13 +89,22 @@ config_Learning_Agent = Config_Learning_Agent(config)
 config_Learning_Agent.batch_size = 16
 config_Learning_Agent.gradient_clipping_norm = 0.7
 config_Learning_Agent.clip_rewards = False
-config_Learning_Agent.architecture =  Parallel_MLP
+config_Learning_Agent.architecture =  Parallel_Conv #! Parallel_MLP
 config_Learning_Agent.input_dim = None 
 config_Learning_Agent.output_size = None
 config_Learning_Agent.is_mask_needed = True
 config.random_episodes_to_run = 0
 config.epsilon_decay_rate_denominator = 1
 
+
+""" Config_Tree_Dual_Policy_Iteration """
+config_tree_dual_policy_iteration = Config_Tree_Dual_Policy_Iteration(config_Learning_Agent)
+config_tree_dual_policy_iteration.  update_on_episode = 100
+config_tree_dual_policy_iteration.learn_epochs = 5 
+config_tree_dual_policy_iteration.max_episode_memory = 500
+config_tree_dual_policy_iteration.num_episodes_to_sample = 100
+config_tree_dual_policy_iteration.max_transition_memory = 1500
+config_tree_dual_policy_iteration.num_transitions_to_sample = 300
 
 """ Config_Reinforce """
 config_reinforce = Config_Reinforce(config_Learning_Agent)
@@ -154,7 +163,7 @@ config_reinforce.environment = Custom_Simple_Playground(config.environment,play_
 
 
 #agent = Tree_Dual_Policy_Iteration(config_reinforce)
-agent = TDPI_Terminal_Learning(config_reinforce)
+agent = TDPI_Terminal_Learning(config_tree_dual_policy_iteration)
 
 #torch.autograd.set_detect_anomaly(True)
 #config_reinforce.environment.add_agent(MCTS_Simple_RL_Agent(config_reinforce.environment.environment,n_iterations=100,network=agent.policy,device=agent.device))
