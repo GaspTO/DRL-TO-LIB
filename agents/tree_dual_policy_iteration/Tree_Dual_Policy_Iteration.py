@@ -72,7 +72,8 @@ class Tree_Dual_Policy_Iteration(Learning_Agent):
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
         #self.network = self.config.architecture(self.device,18,9,1000)
-        self.network = self.config.architecture(self.device,3,3,128)
+        #self.network = self.config.architecture(self.device,3,3,128)
+        self.network = self.config.architecture
         self.optimizer = optim.Adam(self.network.parameters(), lr=2e-05,weight_decay=1e-5)
 
         self.update_on_episode = 100

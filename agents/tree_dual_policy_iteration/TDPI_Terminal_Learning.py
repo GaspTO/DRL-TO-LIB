@@ -32,7 +32,7 @@ class TDPI_Terminal_Learning(Tree_Dual_Policy_Iteration):
         
     def step(self):
         self.start = time()
-        self.action, info = self.k_best_first_minimax_expert(self.observation,k=2,iterations=50)
+        self.action, info = self.k_best_first_minimax_expert(self.observation,k=5,iterations=50)
         self.state_value = info["state_value"]   
         self.next_observation, self.reward, self.done, _ = self.environment.step(self.action)
 

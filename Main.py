@@ -67,7 +67,7 @@ print("seed=" + str(seed))
 """ Config """
 config = Config()
 config.debug_mode = True
-config.environment = Custom_K_Row(board_shape=3, target_length=3)
+config.environment = Custom_Simple_Playground(Custom_K_Row(board_shape=5, target_length=4),play_first=True)
 config.file_to_save_data_results = "results/data_and_graphs/Cart_Pole_Results_Data.pkl"
 config.file_to_save_results_graph = "results/data_and_graphs/Cart_Pole_Results_Graph.png"
 config.hyperparameters = None
@@ -89,7 +89,7 @@ config_Learning_Agent = Config_Learning_Agent(config)
 config_Learning_Agent.batch_size = 16
 config_Learning_Agent.gradient_clipping_norm = 0.7
 config_Learning_Agent.clip_rewards = False
-config_Learning_Agent.architecture =  Parallel_Conv #! Parallel_MLP
+config_Learning_Agent.architecture =  Parallel_Conv(torch.device('cuda' if torch.cuda.is_available() else 'cpu'),height=3,width=3,hidden_nodes=128) #! Parallel_MLP
 config_Learning_Agent.input_dim = None 
 config_Learning_Agent.output_size = None
 config_Learning_Agent.is_mask_needed = True
@@ -140,7 +140,7 @@ config.exploration_worker_difference = 2.0
 
 
 """ AGENTS """
-config_reinforce.environment = Custom_Simple_Playground(config.environment,play_first=True)
+
 
 #agent = REINFORCE(config_reinforce)
 #agent = REINFORCE_BASELINE(config_reinforce_baseline)
@@ -167,7 +167,7 @@ agent = TDPI_Terminal_Learning(config_tree_dual_policy_iteration)
 
 #torch.autograd.set_detect_anomaly(True)
 #config_reinforce.environment.add_agent(MCTS_Simple_RL_Agent(config_reinforce.environment.environment,n_iterations=100,network=agent.policy,device=agent.device))
-config_reinforce.environment.add_agent(MCTS_Search(config_reinforce.environment.environment,n_iterations=100))
+config.environment.add_agent(MCTS_Search(config.environment.environment,n_iterations=100))
 game_scores, rolling_scores, time_taken = agent.run_n_episodes(num_episodes=10000)
 #todo these algorithms don't put new tensors on gpu if asked
 #todo need to creat configs

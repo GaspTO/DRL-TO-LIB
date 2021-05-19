@@ -244,7 +244,7 @@ class Parallel_Conv(Neural_Agent):
         self.pnet = nn.Sequential(
             nn.Conv2d(in_channels=2,out_channels=64,kernel_size=3,stride=1),
             nn.ReLU(),
-            nn.Conv2d(in_channels=64,out_channels=64,kernel_size=1,stride=1),
+            nn.Conv2d(in_channels=64,out_channels=64,kernel_size=3,stride=1),
             nn.ReLU(),
             nn.Flatten(),
             nn.Linear(self.linear_input_size,hidden_nodes),
@@ -255,7 +255,7 @@ class Parallel_Conv(Neural_Agent):
         self.vnet = nn.Sequential(
             nn.Conv2d(in_channels=2,out_channels=64,kernel_size=3,stride=1),
             nn.ReLU(),
-            nn.Conv2d(in_channels=64,out_channels=64,kernel_size=1,stride=1),
+            nn.Conv2d(in_channels=64,out_channels=64,kernel_size=3,stride=1),
             nn.ReLU(),
             nn.Flatten(),
             nn.Linear(self.linear_input_size,hidden_nodes),
@@ -267,7 +267,7 @@ class Parallel_Conv(Neural_Agent):
         self.qnet = nn.Sequential(
             nn.Conv2d(in_channels=2,out_channels=64,kernel_size=3,stride=1),
             nn.ReLU(),
-            nn.Conv2d(in_channels=64,out_channels=64,kernel_size=1,stride=1),
+            nn.Conv2d(in_channels=64,out_channels=64,kernel_size=3,stride=1),
             nn.ReLU(),
             nn.Flatten(),
             nn.Linear(self.linear_input_size,hidden_nodes),
