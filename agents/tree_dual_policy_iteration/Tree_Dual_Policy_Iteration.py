@@ -1,92 +1,72 @@
-import agents.tree_agents.MCTS_Agents as MCTS_Agents
+from environments.Arena import Arena
 from agents.Learning_Agent import Learning_Agent, Config_Learning_Agent
+from agents.search_agents.Abstract_Network_Search_Agent import Abstract_Network_Search_Agent
 from torch.distributions import Categorical
 from collections import namedtuple
 from time import sleep, time
 import torch.optim as optim
 import torch
 import numpy as np
-import copy
 import random
+from torch.utils.data import Dataset
 
-''' 
-MCTS
-'''
-from agents.search_agents.mcts.MCTS import MCTS
-from agents.search_agents.mcts.MCTS_Evaluation_Strategy import *
-from agents.search_agents.mcts.MCTS_Expansion_Strategy import *
-'''
-MINIMAX
-'''
-from agents.search_agents.minimax.Minimax import Minimax
-from agents.search_agents.minimax.Minimax_Value_Estimation_Strategy import *
-'''
-BEST-FIRST MINIMAX
-'''
-from agents.search_agents.k_best_first_minimax.K_Best_First_Minimax import K_Best_First_Minimax
-from agents.search_agents.k_best_first_minimax.K_Best_First_Minimax_Expansion_Strategy import *
+
 
 class Config_Tree_Dual_Policy_Iteration(Config_Learning_Agent):
     def __init__(self,config=None):
         super().__init__(config)
         if(isinstance(config,Config_Tree_Dual_Policy_Iteration)):
-            self.update_on_episode = config.get_update_on_episode()
+            self.start_updating_at_episode = config.get_start_updating_at_episode()
+            self.update_episode_perodicity = config.get_update_episode_perodicity()
             self.learn_epochs = config.get_learn_epochs()
-            self.max_episode_memory = config.get_max_episode_memory()
-            self.num_episodes_to_sample = config.get_num_episodes_to_sample()
             self.max_transition_memory = config.get_max_transition_memory()
-            self.num_transitions_to_sample = config.get_num_transitions_to_sample()
-        else:
-            self.update_on_episode = 100
-            self.learn_epochs = 5 
-            self.max_episode_memory = 500 #1
-            self.num_episodes_to_sample = 100
-            self.max_transition_memory = 1500
-            self.num_transitions_to_sample = 300
 
-    def get_update_on_episode(self):
-        return self.update_on_episode
+        else:
+            self.start_updating_at_episode = None
+            self.update_episode_perodicity = None
+            self.learn_epochs = None
+            self.max_transition_memory = None
+
+    def get_start_updating_at_episode(self):
+        if self.start_updating_at_episode is None:
+            raise ValueError("start_updating_at_episode can't be None")
+        return self.start_updating_at_episode
+
+    def get_update_episode_perodicity(self):
+        if self.update_episode_perodicity is None:
+            raise ValueError("update_episode_perodicity can't be None")
+        return self.update_episode_perodicity
 
     def get_learn_epochs(self):
+        if self.learn_epochs is None:
+            raise ValueError("learn_epochs can't be None")
         return self.learn_epochs
         
-    def get_max_episode_memory(self):
-        return self.max_episode_memory
-    
-    def get_num_episodes_to_sample(self):
-        return self.num_episodes_to_sample
-
     def get_max_transition_memory(self):
+        if self.max_transition_memory is None:
+            raise ValueError("max_transition_memory can't be None")
         return self.max_transition_memory
 
-    def get_num_transitions_to_sample(self):
-        return self.num_transitions_to_sample
-    
-    
+
+
+
 
 class Tree_Dual_Policy_Iteration(Learning_Agent):
     agent_name = "Tree_Dual_Policy_Iteration"
-    def __init__(self, config):
+    def __init__(self,network, tree_agent, config):
         Learning_Agent.__init__(self, config)
 
+        self.network = network
+        self.tree_agent = tree_agent
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
         #self.network = self.config.architecture(self.device,18,9,1000)
-        #self.network = self.config.architecture(self.device,3,3,128)
-        self.network = self.config.architecture
+        
         self.optimizer = optim.Adam(self.network.parameters(), lr=2e-05,weight_decay=1e-5)
 
-        self.update_on_episode = 100
-        self.learn_epochs = 5 
-        self.batch_size = 1
-
         self.episodes = []
-        self.max_episode_memory = 500 #1
-        self.num_episodes_to_sample = 100
-        
         self.transitions = []
-        self.max_transition_memory = 1500
-        self.num_transitions_to_sample = 300
+
 
 
     """""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
@@ -97,7 +77,12 @@ class Tree_Dual_Policy_Iteration(Learning_Agent):
         return NotImplementedError
 
     def step(self):
-        return NotImplementedError
+        self.start = time()
+        self.tree_action_probabilities, info = self.tree_agent.play(self.observation)
+        self.action = self.tree_action_probabilities.argmax()
+        self.state_value = info["state_value"]   
+        self.next_observation, self.reward, self.done, _ = self.environment.step(self.action)
+
 
     """""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
     *                      EPISODE/STEP DATA MANAGEMENT        
@@ -124,13 +109,15 @@ class Tree_Dual_Policy_Iteration(Learning_Agent):
         self.episodes.append(episode)
         self.episodes = self.episodes[-max_size:]
 
-    def get_transition_batch(self,samples):
+    def get_transition_training_data(self,samples) -> Dataset:
         training_data = random.choices(self.transitions, k=samples)
         return training_data
         
     def add_transition_to_memory(self, transition, max_size=0):
         self.transitions.append(transition)
         self.transitions = self.transitions[-max_size:]
+
+    
 
 
     """""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
@@ -140,7 +127,7 @@ class Tree_Dual_Policy_Iteration(Learning_Agent):
     ''' standard learn '''
     def time_to_learn(self):
         #* learn at a certain episode_number when done
-        return self.done and self.episode_number % self.update_on_episode == 0 and self.episode_number != 0
+        return self.done and self.episode_number % self.config.get_update_episode_perodicity() == 0 and self.episode_number >= self.config.get_start_updating_at_episode()
 
     def learn(self):
         raise NotImplementedError
@@ -245,114 +232,11 @@ class Tree_Dual_Policy_Iteration(Learning_Agent):
         loss = loss_vector.mean()
         return loss
 
-    
     """""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
-    *                            AGENTS                              
-    *            Main interface to be used by every implemented agent               
+    *                         Arena / Network managements             
     """""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
-    ''' Network '''
-    def network_policy_actions(self,current_observation,mask):
-        self.network.load_observations(np.expand_dims(current_observation, axis=0))
-        policy_values_logits = self.network.get_policy_values(False,np.array([mask]))
-        policy_values_softmax =  torch.softmax(policy_values_logits,dim=1)
-        action = policy_values_softmax.argmax()
-        return action.item(), {"action_probability": policy_values_softmax[0][action],
-            "action_log_probability":torch.log_softmax(policy_values_logits,dim=1)[0][action],
-            "logits": policy_values_logits[0], "probability_vector": policy_values_softmax[0]}
 
-    def network_state_value(self,current_observation):
-        self.network.load_observations(np.expand_dims(current_observation, axis=0))
-        state_value = self.network.get_state_value()
-        return None, {"state_value":state_value[0]}
 
-    def network_q_values(self,current_observation):
-        self.network.load_observations(np.expand_dims(current_observation, axis=0))
-        q_values = self.network.get_q_values()
-        action = q_values.argmax()
-        return action, {"q_values":q_values[0]}
-        
-    ''' Original MCTS '''
-    def mcts_original(self,observation,n,exploration_weight):
-        #todo some things in here need config
-        search = MCTS_Agents.MCTS_Search(self.environment.environment,n,exploration_weight=exploration_weight)
-        action = search.play(observation)
-        return action
-    
-    def mcts_simple_rl(self,observation,n,exploration_weight):
-        #todo some things in here need config
-        search = MCTS_Agents.MCTS_Simple_RL_Agent(self.environment.environment,n,self.network,self.device,exploration_weight=exploration_weight)
-        action = search.play(observation)
-        probs = search.probs
-        return action,probs
-
-    ''' New Search agents '''
-    def mcts_expert(self,observation,iterations,k,exploration_weight):
-        env = self.environment.environment
-
-        #* eval functions
-        tree_evaluation = UCT(exploration_weight=1.0)
-        #tree_evaluation = UCT_P(exploration_weight=1.0)
-        #tree_evaluation = PUCT(exploration_weight=1.0)
-
-        #* expand policy
-        #! expand policy
-        #tree_expansion = MCTS_One_Successor_Rollout()
-        tree_expansion = MCTS_Network_Value(self.network,self.device)
-        #tree_expansion = MCTS_Network_Policy_Value(self.network,self.device)
-        #tree_expansion = MCTS_Network_Policy_One_Successor_Rollout(self.network,self.device)
-
- 
-        #* tree policy 
-        tree_policy = MCTS(env,iterations,evaluation_st=tree_evaluation,expansion_st=tree_expansion)
-        
-        #!
-        action_probs, info = tree_policy.play(observation)
-        root_node = info["root_node"]
-
-        action = action_probs.argmax()
-
-        return action, torch.FloatTensor(action_probs), torch.tensor([root_node.total_value/root_node.num_visits])
-        
-    def minimax_expert(self,observation,max_depth):
-        env = self.environment.environment
-
-        #* value estimation policy
-        #value_estimation = Random_Rollout_Estimation(num_rollouts=1)
-        #value_estimation = Network_Value_Estimation(self.network,self.device)
-        value_estimation = Network_Q_Estimation(self.network,self.device)
-
-        #* tree policy
-        tree_policy = Minimax(env,value_estimation,max_depth=max_depth)
-       
-
-        action_probs, info = tree_policy.play(observation)
-        root_node = info["root_node"]
-
-        #!sampling
-        #action_distribution = Categorical(torch.tensor(action_probs)) # this creates a distribution to sample from
-        #action = action_distribution.sample()
-        action = action_probs.argmax()
-
-        return action, torch.FloatTensor(action_probs), torch.tensor([root_node.value])
-    
-
-    def k_best_first_minimax_expert(self,observation,k,iterations):
-        env = self.environment.environment
-
-        #* value estimation policy
-        #expansion_st = K_Best_First_All_Successors_Rollout(num_rollouts=1)
-        #expansion_st = K_Best_First_Network_Successor_Q(self.network,self.device)
-        expansion_st = K_Best_First_Network_Successor_V(self.network,self.device)
-
-        #* tree policy
-        tree_policy = K_Best_First_Minimax(env,expansion_st,k=k,num_iterations=iterations)
-
-        #!sampling
-        action_probs, info = tree_policy.play(observation)
-        root_node = info["root_node"]
-        action = action_probs.argmax()
-
-        return action, {"state_value":torch.tensor([root_node.value])}
 
 
     """""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""

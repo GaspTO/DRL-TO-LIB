@@ -1,3 +1,4 @@
+from agents.Neural_Agent import Neural_Agent
 import torch
 import numpy as np
 
@@ -27,7 +28,7 @@ class K_Best_First_Minimax_Expansion_Strategy:
 
 
 ''' For successors, no exploration bias '''
-class K_Best_First_All_Successors_Rollout(K_Best_First_Minimax_Expansion_Strategy):
+class K_Best_First_All_Successors_Rollout_Expansion_Strategy(K_Best_First_Minimax_Expansion_Strategy):
     '''
         NO POLICY BIAS.
         EVERY expand CALL CREATES ONLY ONE SUCCESSOR, WHOSE NODE.total_value IS ESTIMATED BY A RANDOM ROLLOUT
@@ -63,16 +64,16 @@ class K_Best_First_All_Successors_Rollout(K_Best_First_Minimax_Expansion_Strateg
 
 
 
-class K_Best_First_Network_Successor_V(K_Best_First_Minimax_Expansion_Strategy):
+class K_Best_First_Network_Successor_V_Expansion_Strategy(K_Best_First_Minimax_Expansion_Strategy):
     '''
         NETWORK POLICY BIAS (NODE.exploration_bias)
         EACH EXPANSION GENERATES ALL SUCCESSORS. EVERY SUCCESSOR RECEIVE A POLICY BIAS.
         AND THE NODE EXPANDED RECEIVES A NODE.total_value ESTIMATION.
     '''
-    def __init__(self,network,device,batch_size=None):
+    def __init__(self,network,batch_size=None):
         super().__init__()
         self.network = network
-        self.device = device
+        self.device = self.network.device
         self.batch_size = batch_size
 
     def _instanciate_successors(self,nodes:list):
@@ -92,7 +93,7 @@ class K_Best_First_Network_Successor_V(K_Best_First_Minimax_Expansion_Strategy):
 
         #* run network and add values to a list
         if len(child_nodes_queue) > 0:
-            observations = torch.tensor(observations)
+            observations = torch.tensor(observations,device=self.device)
             
             if self.batch_size is not None:
                 observations = torch.split(observations,self.batch_size)
@@ -101,7 +102,7 @@ class K_Best_First_Network_Successor_V(K_Best_First_Minimax_Expansion_Strategy):
 
             for x in observations:
                 with torch.no_grad():
-                    state_values = self.network.load_observations(x.numpy()).get_state_value()
+                    state_values = self.network(x)
                     child_nodes_state_values.extend(state_values)
         
             #* put those results in the appropriate child nodes
@@ -112,70 +113,57 @@ class K_Best_First_Network_Successor_V(K_Best_First_Minimax_Expansion_Strategy):
     
 
 
-
-
-"""
-class Network_Successor_V(Expansion_Strategy):
+class K_Best_First_Network_Successor_Q_Expansion_Strategy(K_Best_First_Minimax_Expansion_Strategy):
     '''
         NETWORK POLICY BIAS (NODE.exploration_bias)
         EACH EXPANSION GENERATES ALL SUCCESSORS. EVERY SUCCESSOR RECEIVE A POLICY BIAS.
         AND THE NODE EXPANDED RECEIVES A NODE.total_value ESTIMATION.
     '''
-    def __init__(self,network,device):
+    def __init__(self,neural_agent,batch_size=None):
         super().__init__()
-        self.network = network
-        self.device = device
+        self.neural_agent = neural_agent
+        self.device = self.neural_agent.get_device()
+        self.batch_size = batch_size
 
-    def expand(self,node):
-        estimate = super().expand(node)
-        return estimate
+    def _instanciate_successors(self,nodes:list):
+        parent_nodes_queue = []
+        observations = []
+        parent_nodes_q_values = []
+        #* put child nodes that are not terminal to queue to be evaluated by network
 
-    def _instanciate_successors(self,node):
-        child_nodes = node.expand_rest_successors()
-        with torch.no_grad():
-            for node_child in child_nodes:
-                self.network.load_observations(np.array([node_child.get_current_observation()]))
-                state_value = self.network.get_state_value()
-                if node_child.is_terminal():
-                    node_child.value = 0
-                else:
-                    node_child.value = state_value
 
-    def _estimate_node(self, node):        
-        return None
-"""  
+        for node in nodes:
+            node.expand_rest_successors()
+            parent_nodes_queue.append(node)
+            observations.append(node.get_current_observation())
+            
+        #* run network and add values to a list
+        if len(observations) > 0:
+            observations = torch.tensor(observations,device=self.device)
+            if self.batch_size is not None:
+                observations = torch.split(observations,self.batch_size)
+            else:
+                observations = observations.unsqueeze(0)
 
-class  K_Best_First_Network_Successor_Q(K_Best_First_Minimax_Expansion_Strategy):
-    '''
-        NETWORK POLICY BIAS (NODE.exploration_bias)
-        EACH EXPANSION GENERATES ALL SUCCESSORS. EVERY SUCCESSOR RECEIVE A POLICY BIAS.
-        AND THE NODE EXPANDED RECEIVES A NODE.total_value ESTIMATION.
-    '''
-    def __init__(self,network,device):
-        super().__init__()
-        self.network = network
-        self.device = device
+            for x in observations:
+                with torch.no_grad():
+                    q_values = self.neural_agent.load_observations(x.numpy()).get_q_values()
+                    parent_nodes_q_values.extend(q_values)
+        
+            #* put those results in the appropriate child nodes
+            for parent_idx in range(len(parent_nodes_queue)):
+                successors = parent_nodes_queue[parent_idx].get_successors()
+                parent_q_values = parent_nodes_q_values[parent_idx]
+                for succ in successors:
+                    if succ.is_terminal():
+                        succ.value = 0
+                        succ.non_terminal_value = None
+                    else:
+                        succ.value = parent_q_values[succ.get_parent_action()].item()
+                        succ.non_terminal_value = succ.value
 
-    def expand(self,node):
-        current_board = node.get_current_observation()
-        with torch.no_grad():
-            self.network.load_observations(np.array([current_board]))
-        estimate = super().expand(node)
-        return estimate
 
-    def _instanciate_successors(self,node):
-        child_nodes = node.expand_rest_successors()
-        with torch.no_grad():
-            q_values = self.network.get_q_values()
-            for node_child in child_nodes:
-                if node_child.is_terminal():
-                    node_child.value = 0
-                else:
-                    node_child.value = q_values[0][node_child.parent_action].item()
 
-    def _estimate_node(self, node):        
-        return None
-    
 
 
 

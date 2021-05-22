@@ -13,6 +13,7 @@ import random
 NEURAL NETWORK
 '''
 from agents.Neural_Agent import *
+from agents.networks.v_networks.V_Network import V_Network
 
 '''
 Environments
@@ -39,26 +40,28 @@ POLICY BASED
 from agents.policy_gradient_agents.REINFORCE import REINFORCE, Config_Reinforce
 from agents.policy_gradient_agents.REINFORCE_BASELINE import REINFORCE_BASELINE, Config_Reinforce_Baseline
 from agents.actor_critic_agents.A3C import A3C, Config_A3C
-
-
 '''
 TREE BASED
 '''
 from agents.tree_agents.MCTS_Agents import MCTS_Search, MCTS_Simple_RL_Agent
-from agents.tree_agents.DAGGER import DAGGER
 '''
-STI
+TREE DUAL POLICY ITERATION
 '''
 from agents.tree_dual_policy_iteration.Tree_Dual_Policy_Iteration import Config_Tree_Dual_Policy_Iteration, Tree_Dual_Policy_Iteration
 from agents.tree_dual_policy_iteration.TDPI_Terminal_Learning import TDPI_Terminal_Learning
 '''
-ASTAR
+SEARCH
 '''
-#from agents.Simple_Astar.ASTAR_DAGGER import ASTAR_DAGGER
+from agents.search_agents.K_BFS_Minimax_Agent_Collection import K_Best_First_Minimax_Rollout, K_Best_First_Minimax_V, K_Best_First_Minimax_Q
 
 
 
+
+board_shape = 3
+target_length = 3
 seed = random.randint(1, 1000)
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+net = V_Network(device,3,3,hidden_nodes=300)
 print("seed=" + str(seed))
 
 
@@ -67,7 +70,7 @@ print("seed=" + str(seed))
 """ Config """
 config = Config()
 config.debug_mode = True
-config.environment = Custom_Simple_Playground(Custom_K_Row(board_shape=5, target_length=4),play_first=True)
+config.environment = Custom_Simple_Playground(Custom_K_Row(board_shape=board_shape, target_length=target_length),play_first=True)
 config.file_to_save_data_results = "results/data_and_graphs/Cart_Pole_Results_Data.pkl"
 config.file_to_save_results_graph = "results/data_and_graphs/Cart_Pole_Results_Graph.png"
 config.hyperparameters = None
@@ -89,23 +92,21 @@ config_Learning_Agent = Config_Learning_Agent(config)
 config_Learning_Agent.batch_size = 16
 config_Learning_Agent.gradient_clipping_norm = 0.7
 config_Learning_Agent.clip_rewards = False
-config_Learning_Agent.architecture =  Parallel_Conv(torch.device('cuda' if torch.cuda.is_available() else 'cpu'),height=3,width=3,hidden_nodes=128) #! Parallel_MLP
+config_Learning_Agent.architecture =  net
 config_Learning_Agent.input_dim = None 
 config_Learning_Agent.output_size = None
 config_Learning_Agent.is_mask_needed = True
 config.random_episodes_to_run = 0
 config.epsilon_decay_rate_denominator = 1
 
-
 """ Config_Tree_Dual_Policy_Iteration """
 config_tree_dual_policy_iteration = Config_Tree_Dual_Policy_Iteration(config_Learning_Agent)
-config_tree_dual_policy_iteration.update_on_episode = 100
-config_tree_dual_policy_iteration.learn_epochs = 5 
-config_tree_dual_policy_iteration.max_episode_memory = 500
-config_tree_dual_policy_iteration.num_episodes_to_sample = 100
-config_tree_dual_policy_iteration.max_transition_memory = 1500
-config_tree_dual_policy_iteration.num_transitions_to_sample = 300
+config_tree_dual_policy_iteration.start_updating_at_episode = 1
+config_tree_dual_policy_iteration.update_episode_perodicity = 100
+config_tree_dual_policy_iteration.learn_epochs = 5
+config_tree_dual_policy_iteration.max_transition_memory = 20000
 
+#! OUTDATED BELOW
 """ Config_Reinforce """
 config_reinforce = Config_Reinforce(config_Learning_Agent)
 config_reinforce.discount_rate = 0.99
@@ -142,44 +143,17 @@ config.exploration_worker_difference = 2.0
 """ AGENTS """
 
 
-#agent = REINFORCE(config_reinforce)
-#agent = REINFORCE_BASELINE(config_reinforce_baseline)
-#agent = REINFORCEadv_krow(config_reinforce)
-#agent = REINFORCE_Baseline(config_reinforce_baseline)
-#agent = Logic_Loss_Reinforce(config_reinforce) 
-#agent = REINFORCE_Tree(config_reinforce)
-#agent = REINFORCE_Tree_2(config_reinforce)
-#agent = REINFORCEadv_krow_mcts_vs_mcts(config_reinforce)
-#agent = REINFORCE_adv(config_reinforce)
-#agent = REINFORCE_adv_negative(config_reinforce)
-
-#agent = DQN(config_DQN)
-#agent = DDQN(config_DDQN)
-#agent = DDQN_krow(config_DDQN)
-#agent = A3C(config_A3C) 
-#agent = DAGGER(config_reinforce)
-
-
 
 
 #agent = Tree_Dual_Policy_Iteration(config_reinforce)
-agent = TDPI_Terminal_Learning(config_tree_dual_policy_iteration)
 
-#torch.autograd.set_detect_anomaly(True)
+#tree_agent = K_Best_First_Minimax_Rollout(config.environment.environment,k=2,num_iterations=20,num_rollouts_per_node=2,debug=False)
+tree_agent = K_Best_First_Minimax_V(config.environment.environment,k=2,num_iterations=50,network=net)
+agent = TDPI_Terminal_Learning(net,tree_agent,config_tree_dual_policy_iteration)
+
 #config_reinforce.environment.add_agent(MCTS_Simple_RL_Agent(config_reinforce.environment.environment,n_iterations=100,network=agent.policy,device=agent.device))
 config.environment.add_agent(MCTS_Search(config.environment.environment,n_iterations=100))
 game_scores, rolling_scores, time_taken = agent.run_n_episodes(num_episodes=10000)
-#todo these algorithms don't put new tensors on gpu if asked
-#todo need to creat configs
-#todo actions should be tensors and not integers
-#todo should not use the word state, but observation and next_observation
-#todo logger should be global
-#todo refactor networks: softmax and mask should be explicitly passed or not passed, to avoid mistakes like forgetting we're suppose to use it
-#todo have a more formal way of managing networks
-#todo DAGGER like alpazero should keep the tree for the next play
-
-
-
 
 
 

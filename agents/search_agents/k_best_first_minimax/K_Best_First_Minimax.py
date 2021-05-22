@@ -5,25 +5,21 @@ sys.path.append("/home/nizzel/Desktop/Tiago/Computer_Science/Tese/DRL-TO-LIB")
 from agents.Agent import Agent
 from agents.search_agents.k_best_first_minimax.K_Best_First_Minimax_Node import K_Best_First_Minimax_Node
 import numpy as np
-import heapq
 from collections import namedtuple
 import random
 
 
-
-
-
 class K_Best_First_Minimax(Agent):
-    def __init__(self,environment,expansion_st,k=1,num_iterations=None):
+    def __init__(self,environment,expansion_st,k=1,num_iterations=None,debug=False):
         Agent.__init__(self,environment)
         self.expansion_st = expansion_st
         self.num_iterations = num_iterations
         self.k = k
         self.root = None
-
-    def play(self,observation=None,debug=False):
-        if(observation is None): observation = self.environment.get_current_observation()
         self.debug = debug
+
+    def play(self,observation=None):
+        if(observation is None): observation = self.environment.get_current_observation()
         self.root = K_Best_First_Minimax_Node(self.environment,observation)
         self.search(self.root,self.num_iterations)
         return self._get_action_probabilities(self.root), {"root_node":self.root}
@@ -32,7 +28,8 @@ class K_Best_First_Minimax(Agent):
         if root.is_terminal():
             raise ValueError("shouldn't be terminal")
         for iter_num in range(num_iterations):
-            if self.debug: print("..................... ITER " + str(iter_num) + "   .....................")
+            if self.debug:
+                print("..................... ITER " + str(iter_num) + "   .....................")
             k_nodes = self.find_k_nodes_to_expand(root,iter_num,self.k)
             if len(k_nodes) == 0:
                 return                
@@ -50,7 +47,6 @@ class K_Best_First_Minimax(Agent):
                 print("======")
                 self.debug(root)
             
-                    
     def find_k_nodes_to_expand(self,node,iteration_number,k):
         def i_successor_estimation_from_parent(succ):
             if succ.i < iteration_number:
@@ -138,9 +134,7 @@ class K_Best_First_Minimax(Agent):
                 num_max_values += 1
                 action_probs[n.get_parent_action()] = 1
         action_probs = action_probs * (1/num_max_values)
-        
-        if action_probs.sum().item() > 1:
-            print("ups")
+
         return action_probs
 
 
@@ -159,9 +153,6 @@ class K_Best_First_Minimax(Agent):
         assert max_value == key(max(list,key=key))
         return item
 
-                
-
-    
     ''' debug '''
     def unroll_actions(self,node):
         if node is not None:
