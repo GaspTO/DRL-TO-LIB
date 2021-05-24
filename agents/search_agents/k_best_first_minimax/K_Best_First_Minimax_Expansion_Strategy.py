@@ -27,6 +27,21 @@ class K_Best_First_Minimax_Expansion_Strategy:
         raise NotImplementedError
 
 
+class Network_K_Best_First_Minimax_Expansion_Strategy(K_Best_First_Minimax_Expansion_Strategy):
+    def __init__(self,network,batch_size):
+        super().__init__()
+        self.network = network
+        self.device = self.network.device
+        self.batch_size = batch_size
+
+    def set_network(self,network):
+        self.network = network
+        self.device = self.network.device
+    
+    def set_batch_size(self,batch_size):
+        self.batch_size = batch_size
+
+
 ''' For successors, no exploration bias '''
 class K_Best_First_All_Successors_Rollout_Expansion_Strategy(K_Best_First_Minimax_Expansion_Strategy):
     '''
@@ -64,17 +79,14 @@ class K_Best_First_All_Successors_Rollout_Expansion_Strategy(K_Best_First_Minima
 
 
 
-class K_Best_First_Network_Successor_V_Expansion_Strategy(K_Best_First_Minimax_Expansion_Strategy):
+class K_Best_First_Network_Successor_V_Expansion_Strategy(Network_K_Best_First_Minimax_Expansion_Strategy):
     '''
         NETWORK POLICY BIAS (NODE.exploration_bias)
         EACH EXPANSION GENERATES ALL SUCCESSORS. EVERY SUCCESSOR RECEIVE A POLICY BIAS.
         AND THE NODE EXPANDED RECEIVES A NODE.total_value ESTIMATION.
     '''
-    def __init__(self,network,batch_size=None):
-        super().__init__()
-        self.network = network
-        self.device = self.network.device
-        self.batch_size = batch_size
+    def __init__(self,network,batch_size):
+        super().__init__(network,batch_size)
 
     def _instanciate_successors(self,nodes:list):
         child_nodes_queue = []
@@ -113,17 +125,14 @@ class K_Best_First_Network_Successor_V_Expansion_Strategy(K_Best_First_Minimax_E
     
 
 
-class K_Best_First_Network_Successor_Q_Expansion_Strategy(K_Best_First_Minimax_Expansion_Strategy):
+class K_Best_First_Network_Successor_Q_Expansion_Strategy(Network_K_Best_First_Minimax_Expansion_Strategy):
     '''
         NETWORK POLICY BIAS (NODE.exploration_bias)
         EACH EXPANSION GENERATES ALL SUCCESSORS. EVERY SUCCESSOR RECEIVE A POLICY BIAS.
         AND THE NODE EXPANDED RECEIVES A NODE.total_value ESTIMATION.
     '''
-    def __init__(self,neural_agent,batch_size=None):
-        super().__init__()
-        self.neural_agent = neural_agent
-        self.device = self.neural_agent.get_device()
-        self.batch_size = batch_size
+    def __init__(self,network,batch_size):
+        super().__init__(network,batch_size)
 
     def _instanciate_successors(self,nodes:list):
         parent_nodes_queue = []

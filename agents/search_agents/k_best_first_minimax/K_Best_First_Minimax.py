@@ -1,7 +1,5 @@
 import sys, os
 sys.path.append("/home/nizzel/Desktop/Tiago/Computer_Science/Tese/DRL-TO-LIB")
-
-
 from agents.Agent import Agent
 from agents.search_agents.k_best_first_minimax.K_Best_First_Minimax_Node import K_Best_First_Minimax_Node
 import numpy as np
@@ -10,19 +8,30 @@ import random
 
 
 class K_Best_First_Minimax(Agent):
-    def __init__(self,environment,expansion_st,k=1,num_iterations=None,debug=False):
+    def __init__(self,environment,exploration_strategy,expansion_st,k=1,num_iterations=None,debug=False):
         Agent.__init__(self,environment)
+        self.exploration_strategy = exploration_strategy
         self.expansion_st = expansion_st
         self.num_iterations = num_iterations
         self.k = k
         self.root = None
         self.debug = debug
 
-    def play(self,observation=None):
-        if(observation is None): observation = self.environment.get_current_observation()
+    def play(self,observations:np.array=None,info=None) -> tuple([np.array,dict]):
+        if(observations is None):
+            observations = np.array([self.environment.get_current_observation()])
+        actions = []
+        for obs in observations:
+            action = self.play_one_observation(obs)
+            actions.append(action)
+        return np.array(actions), None
+        
+    def play_one_observation(self,observation):
         self.root = K_Best_First_Minimax_Node(self.environment,observation)
         self.search(self.root,self.num_iterations)
-        return self._get_action_probabilities(self.root), {"root_node":self.root}
+        probabilities = self._get_action_probabilities(self.root)
+        action = self.exploration_strategy.perturb_action_for_exploration_purposes(probabilities,self.root.get_mask())
+        return action
 
     def search(self,root,num_iterations):
         if root.is_terminal():
@@ -125,7 +134,6 @@ class K_Best_First_Minimax(Agent):
     def _get_action_probabilities(self,node):
         #the length of successors is not always the action_size 'cause invalid actions don't become successors
         action_probs = np.zeros(self.environment.get_action_size()) 
-        mask = self.environment.get_mask()
         num_max_values = 0
         for n in node.get_successors():
             assert action_probs[n.get_parent_action()] == 0.

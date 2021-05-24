@@ -1,19 +1,22 @@
+class Base_Exploration_Strategy:
+    """ receives the agent as to get full control over
+    the current information """
 
+    def __init__(self,exploration=True):
+        self.exploration = True
 
-class Base_Exploration_Strategy(object):
-    """Base abstract class for agent exploration strategies. Every exploration strategy must inherit from this class
-    and implement the methods perturb_action_for_exploration_purposes and add_exploration_rewards"""
-    def __init__(self, config):
-        self.config = config
+    def perturb_action_for_exploration_purposes(self, action_vector, mask, info=None):
+        raise NotImplementedError
 
-    def perturb_action_for_exploration_purposes(self, action_info):
-        """Perturbs the action of the agent to encourage exploration"""
-        raise ValueError("Must be implemented")
+    def turn_off_exploration(self):
+        self.exploration = False
 
-    def add_exploration_rewards(self, reward_info):
-        """Actions intrinsic rewards to encourage exploration"""
-        raise ValueError("Must be implemented")
+    def turn_on_exploration(self):
+        self.exploration = True
+
+    def is_on_exploration_mode(self):
+        return self.exploration
 
     def reset(self):
         """Resets the noise process"""
-        raise ValueError("Must be implemented")
+        raise NotImplementedError

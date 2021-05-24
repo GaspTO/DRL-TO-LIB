@@ -102,9 +102,8 @@ class Learning_Agent(Agent):
         datestr = datetime.datetime.now().strftime("%Y-%B-%d-%Hh-%Mm-%Ss")
         self.writer = SummaryWriter("logs/runs/"+datestr)
         self.config = config
-        self.set_random_seeds(config.get_seed())
         self.environment = config.get_environment()
-        self.environment_title = self.get_environment_title()
+        self.environment_title = self.environment.get_name()
         #if(self.environment_title not in self.prepared_games):
         #    raise ValueError("This game was not implemented")
         self.action_types = "dumb..." #todo fix me
@@ -133,9 +132,7 @@ class Learning_Agent(Agent):
     *                            MAIN INTERFACE                               
     *            Main interface to be used by every implemented agent               
     """""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
-    @abstractmethod
-    def play(self,observations:np.array=None,policy=None,info=None) -> tuple([np.array,dict]):
-        return NotImplementedError
+    
 
     def run_n_episodes(self, num_episodes=None, show_whether_achieved_goal=True, save_and_print_results=True):
         """Runs game to completion n times and then summarises results and saves model (if asked to)"""
@@ -147,7 +144,6 @@ class Learning_Agent(Agent):
             #if self.debug_mode == True: self.logger.info("Game ended -- Observation and Reward Sequence is:\n{}".format(self.pack_observations_and_rewards_side_by_side()))
             #else: 
             #! this is the one, but ill replace it for the time being self.logger.info("Game ended -- Last observation:\n{}".format(self.episode_next_observations[-1]))
-            self.logger.info("Game ended -- Last observation:\n{}".format(self.episode_next_observations[-1][0] + -1*self.episode_next_observations[-1][1]))
             if save_and_print_results: self.save_and_print_result()
             self.writer.flush()
         time_taken = time.time() - start
@@ -273,8 +269,6 @@ class Learning_Agent(Agent):
         if random.random() < 0.001: self.logger.info("Learning rate {}".format(new_lr))
 
     def freeze_all_but_output_layers(self, network):
-        """Freezes all layers except the output layer of a network"""
-        print("Freezing hidden layers")
         for param in network.named_parameters():
             param_name = param[0]
             assert "hidden" in param_name or "output" in param_name or "embedding" in param_name, "Name {} of network layers not understood".format(param_name)
@@ -282,29 +276,15 @@ class Learning_Agent(Agent):
                 param[1].requires_grad = False
 
     def unfreeze_all_layers(self, network):
-        """Unfreezes all layers of a network"""
-        print("Unfreezing all layers")
         for param in network.parameters():
             param.requires_grad = True
 
-    
-    ''' Helpful '''
-    def get_environment_title(self):
-        """Extracts name of environment from it"""
-        return self.environment.get_name()
-
     def turn_on_any_epsilon_greedy_exploration(self):
-        """Turns off all exploration with respect to the epsilon greedy exploration strategy"""
-        print("Turning on epsilon greedy exploration")
         self.turn_off_exploration = False
 
     def turn_off_any_epsilon_greedy_exploration(self):
-        """Turns off all exploration with respect to the epsilon greedy exploration strategy"""
-        print("Turning off epsilon greedy exploration")
         self.turn_off_exploration = True
 
-
-    
     ''' Logging '''
     def setup_logger(self):
         self.logger = logger
@@ -353,34 +333,6 @@ class Learning_Agent(Agent):
             if len(self.rolling_results) > self.rolling_score_window:
                 self.max_rolling_score_seen = self.rolling_results[-1]
 
-    def pack_observations_and_rewards_side_by_side(self):
-        height = self.episode_observations[0].shape[0]        
-        output = []
-        for line_no in range(height):
-            for observation in self.episode_observations:
-                observation_line = str(list(observation[line_no]))
-                output.append(observation_line)
-            output.append("\n")
-        for rew_no in range(len(self.episode_rewards)):
-            rew_str = str(self.episode_rewards[rew_no])
-            output.append(" " * (len(output[rew_no])-len(rew_str)) + rew_str)
-        return ''.join(output)
-
-    def set_random_seeds(self, random_seed):
-        """Sets all possible random seeds so results can be reproduced"""
-        os.environ['PYTHONHASHSEED'] = str(random_seed)
-        torch.backends.cudnn.deterministic = True
-        torch.backends.cudnn.benchmark = False
-        torch.manual_seed(random_seed)
-        # tf.set_random_seed(random_seed)
-        random.seed(random_seed)
-        np.random.seed(random_seed)
-        if torch.cuda.is_available():
-            torch.cuda.manual_seed_all(random_seed)
-            torch.cuda.manual_seed(random_seed)
-        if hasattr(gym.spaces, 'prng'):
-            gym.spaces.prng.seed(random_seed)
-
     def locally_save_policy(self):
         """Saves the policy"""
         torch.save(self.q_network_local.state_dict(), "Models/{}_local_network.pt".format(self.agent_name))
@@ -390,7 +342,6 @@ class Learning_Agent(Agent):
         self.game_full_episode_scores.append(self.total_episode_score_so_far)
         self.rolling_results.append(np.mean(self.game_full_episode_scores[-1 * self.rolling_score_window:]))
         self.save_max_result_seen()
-
 
     ''' Other '''
     def clone(self):
@@ -412,4 +363,3 @@ class Learning_Agent(Agent):
         for to_model, from_model in zip(to_model.parameters(), from_model.parameters()):
             to_model.data.copy_(from_model.data.clone())
 
-    

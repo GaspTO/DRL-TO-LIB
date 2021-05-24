@@ -4,8 +4,12 @@ import numpy as np
 from collections import namedtuple
 import torch
 import random
+from copy import deepcopy
 from torch.utils.data import Dataset, DataLoader
 from pytorch_lightning.trainer.trainer import Trainer
+from environments.Arena import Arena
+from agents.tree_agents.MCTS_Search import MCTS_Search
+from exploration_strategies import Epsilon_Greedy_Exploration
 
 
 
@@ -43,15 +47,17 @@ class TDPI_Terminal_Learning(Tree_Dual_Policy_Iteration):
     def __init__(self,network,tree_agent,config):
         super().__init__(network,tree_agent,config)
         self.data_set = []
+        self.use_arena = False
 
-    def step(self):
-        self.start = time()
-        self.action = torch.tensor(self.tree_agent.play(self.observation)[0].argmax()) 
-        self.next_observation, self.reward, self.done, _ = self.environment.step(self.action)
+        
+    def play(self,observations:np.array=None,info=None) -> tuple([np.array,dict]):
+        if observations is None:
+            observations = np.array([self.environment.get_current_observation()])
+        actions, info = self.tree_agent.play(observations)
+        return actions, info
 
     def reset(self):
         super().reset()
-        self.episode_state_values = []
 
     def save_step_info(self):
         super().save_step_info()
@@ -74,9 +80,40 @@ class TDPI_Terminal_Learning(Tree_Dual_Policy_Iteration):
     *                            Terminal Learning                                 
     """""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
     def learn(self):
-        dataloader = DataLoader(self.data_set,batch_size=self.config.get_batch_size(),shuffle=True,)
-        trainer = Trainer(max_epochs=self.config.get_learn_epochs())
+        if self.use_arena:
+            previous_network = deepcopy(self.network)
+            previous_tree_agent = deepcopy(self.tree_agent)
+            previous_tree_agent.set_network(previous_network)
+            previous_play = lambda obs: previous_tree_agent.play(obs)[0].argmax()
+        
+        num_of_samples = (self.config.get_batches_per_epoch()*self.config.get_batch_size())
+        if num_of_samples > len(self.data_set):
+            data = self.data_set
+        else:
+            data = random.sample(self.data_set,num_of_samples)
+
+        dataloader = DataLoader(data,batch_size=self.config.get_batch_size(),shuffle=True,num_workers=self.config.get_num_data_workers())
+        trainer = Trainer(max_epochs=self.config.get_learn_epochs(),checkpoint_callback=False)
         trainer.fit(self.network,dataloader)
+
+        if self.use_arena:
+            new_play = lambda obs: self.tree_agent.play(obs)[0].argmax()
+            wins = Arena(self.environment.environment).playGames(previous_play,new_play,10)
+            if wins[0] > wins[1]:
+                self.network = previous_network
+        
+        if self.episode_number % 300 == 0:
+            self.test(30)
+
+
+    def test(self,n):
+        self.tree_agent.exploration_st.turn_off_exploration()
+        mcts = MCTS_Search(self.environment.environment,n_iterations=100)
+        net_play = lambda obs: self.tree_agent.play(np.array([obs]))[0][0]
+        mcts_play = lambda obs: mcts.play(obs)
+        wins = Arena(self.environment.environment).playGames(net_play,mcts_play,n)
+        self.tree_agent.exploration_st.turn_on_exploration()
+        self.logger.info("Test Results:\n" +  "agent: " + str(wins[0]) + " mcts:" + str(wins[1]) )
 
 
     """""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""

@@ -7,13 +7,13 @@ class Arena():
         self.environment = environment
         
     def playGames(self,player1_fn,player2_fn,num_games):
-        wins = {player1_fn:0 ,player2_fn:0}
+        wins = {player1_fn:0 ,player2_fn:0, None:0}
         players = [player1_fn,player2_fn]
         for i in range(num_games):
             winner = self.playGame(players)
             players.reverse()
             wins[winner] += 1
-        return list(wins.items())
+        return (wins[player1_fn], wins[player2_fn])
 
     def playGame(self,players:list):
         player_num = 0

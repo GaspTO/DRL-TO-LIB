@@ -1,5 +1,6 @@
 from environments.core.Custom_Environment import Custom_Environment
 from utilities.logger import logger
+import numpy as np
 
 class Custom_Simple_Playground(Custom_Environment):
     '''
@@ -18,10 +19,12 @@ class Custom_Simple_Playground(Custom_Environment):
         self.play_no = 0
         self.num_of_players = 1
         
-    def add_agent(self, agent):
+    def set_adversary(self, agent):
         self.adversary_agent = agent
-        self.num_of_players += 1
         assert self.adversary_agent.get_environment() == self.environment
+
+    def get_adversary(self):
+        return self.adversary_agent
             
     def step(self,action,observation=None):
         assert self.adversary_agent.get_environment() == self.environment
@@ -36,7 +39,7 @@ class Custom_Simple_Playground(Custom_Environment):
 
         #* ADVERSARY PLAY
         if(not done1):
-            action2 = self.adversary_agent.play()
+            action2 = self.adversary_agent.play(np.array([next_state1]))[0][0]
             logger.info("adversary: " + str(action2))
             next_state2, reward2, done2, info2 = self.environment.step(action2)            
         else:
@@ -55,7 +58,7 @@ class Custom_Simple_Playground(Custom_Environment):
         if self.environment is None: raise ValueError('Need to set an environment to playground')
         next_state = self.environment.reset()
         if self.play_first ==  False:
-            action = self.adversary_agent.play()
+            action =  self.adversary_agent.play(np.array([next_state]))[0][0]
             next_state, _, _, _ = self.environment.step(action)
             logger.info("adversary: " + str(action))
         return next_state

@@ -1,3 +1,4 @@
+from torch._C import Value
 from environments.Arena import Arena
 from agents.Learning_Agent import Learning_Agent, Config_Learning_Agent
 from agents.search_agents.Abstract_Network_Search_Agent import Abstract_Network_Search_Agent
@@ -19,13 +20,17 @@ class Config_Tree_Dual_Policy_Iteration(Config_Learning_Agent):
             self.start_updating_at_episode = config.get_start_updating_at_episode()
             self.update_episode_perodicity = config.get_update_episode_perodicity()
             self.learn_epochs = config.get_learn_epochs()
+            self.batches_per_epoch = config.get_batches_per_epoch()
             self.max_transition_memory = config.get_max_transition_memory()
+            self.num_data_workers = config.get_num_data_workers()
 
         else:
             self.start_updating_at_episode = None
             self.update_episode_perodicity = None
             self.learn_epochs = None
+            self.batches_per_epoch = None
             self.max_transition_memory = None
+            self.num_data_workers = None
 
     def get_start_updating_at_episode(self):
         if self.start_updating_at_episode is None:
@@ -42,11 +47,21 @@ class Config_Tree_Dual_Policy_Iteration(Config_Learning_Agent):
             raise ValueError("learn_epochs can't be None")
         return self.learn_epochs
         
+    def get_batches_per_epoch(self):
+        if self.batches_per_epoch is None:
+            raise ValueError("batches_per_epoch")
+        else:
+            return self.batches_per_epoch
+
     def get_max_transition_memory(self):
         if self.max_transition_memory is None:
             raise ValueError("max_transition_memory can't be None")
         return self.max_transition_memory
 
+    def get_num_data_workers(self):
+        if self.num_data_workers is None:
+            raise ValueError("num_data_workers can't be None")
+        return self.num_data_workers
 
 
 
@@ -73,14 +88,9 @@ class Tree_Dual_Policy_Iteration(Learning_Agent):
     *                            MAIN INTERFACE                               
     *            Main interface to be used by every implemented agent               
     """""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
-    def play(self,observations:np.array=None,policy=None,info=None) -> tuple([np.array,dict]):
-        return NotImplementedError
-
     def step(self):
         self.start = time()
-        self.tree_action_probabilities, info = self.tree_agent.play(self.observation)
-        self.action = self.tree_action_probabilities.argmax()
-        self.state_value = info["state_value"]   
+        self.action = self.tree_agent.play(np.array([self.observation]))[0][0]
         self.next_observation, self.reward, self.done, _ = self.environment.step(self.action)
 
 
@@ -240,22 +250,26 @@ class Tree_Dual_Policy_Iteration(Learning_Agent):
 
 
     """""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
-    *                            Other Methods...             
+    *                            Logs             
     """""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
     def log_iteration_text(self,i,debug=False):
         reward_txt = "reward \t{0: .2f} \n".format(self.episode_rewards[i])
         action_txt = "agent_action: \t{1: 2d} \n".format(self.episode_actions[i])
-        modified_observation = self.episode_observations[i][0] + -1*self.episode_observation[i][1]
+        modified_observation = self.episode_observations[i][0] + -1*self.episode_observations[i][1]
         return reward_txt + action_txt + modified_observation
 
+    def log_final(self,debug=False):
+        text = "final-state:\n"
+        modified_observation = str(-1*self.episode_next_observations[-1][0] + self.episode_next_observations[-1][1]) + "\n"
+        return text + modified_observation
 
     def log_updated_probabilities(self):
         full_text = []
-        for i in range(len(self.observation)):
+        for i in range(len(self.episode_observations)):
             iter_text = self.log_iteration_text(i,debug=False)
             full_text.append(iter_text)
-
-        self.logger.info("Updated probabilities and Loss After update:\n" + ''.join(full_text))
+        full_text.append(self.log_final(debug=False))
+        self.logger.info("Updated probabilities and Loss After update:\n\n" + ''.join(full_text))
     
 
 

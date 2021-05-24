@@ -21,9 +21,10 @@ class Agent():
         - dict of extra info
         - if observations are passed, then uses them. otherwise, uses internal environment state
         - play DOES NOT change the state of the environment.
+        - returns an array with actions for each observation and a dictionary with any extra info
     '''
     @abstractmethod
-    def play(self,observations:np.ndarray=None,policy=None,info=None) -> tuple([np.array,dict]):
+    def play(self,observations:np.array=None,info=None) -> tuple([np.array,dict]):
         return NotImplementedError
 
     def get_environment(self):
