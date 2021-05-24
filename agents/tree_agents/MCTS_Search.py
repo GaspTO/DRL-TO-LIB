@@ -45,8 +45,10 @@ class MCTS_Search(Agent):
     '''
     AGENT interface and other helpful methods
     '''
-    def play(self,observation = None):
-        if observation is None: observation = self.environment.get_current_observation() 
+    def play(self,observations:np.array = None):
+        if observations is None: observation = self.environment.get_current_observation() 
+        if len(observations) != 1: raise ValueError("MCTS_Search is not ready for batches bigger than 1")
+        observation = observations[0]
         self.root =  Search_Node(self.environment,observation,initializer_fn=self.node_initializer)
         self.root.belongs_to_tree = True
         self.current_node = self.root
@@ -67,7 +69,7 @@ class MCTS_Search(Agent):
         #! END DEBUG
 
         self.probs = probs
-        return probs.argmax()
+        return np.array([probs.argmax()]), None
 
 
     '''
