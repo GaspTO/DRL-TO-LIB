@@ -60,14 +60,12 @@ EXPLORATION STRATEGY
 from exploration_strategies.Epsilon_Greedy_Exploration import Epsilon_Greedy_Exploration
 
 
-board_shape = 3
-target_length = 3
+board_shape = 5
+target_length = 4
 seed = random.randint(1, 1000)
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 net = V_Network(device,3,3,hidden_nodes=300)
 print("seed=" + str(seed))
-
-
 
 
 """ Config """
@@ -105,11 +103,11 @@ config.epsilon_decay_rate_denominator = 1
 """ Config_Tree_Dual_Policy_Iteration """
 config_tree_dual_policy_iteration = Config_Tree_Dual_Policy_Iteration(config_Learning_Agent)
 config_tree_dual_policy_iteration.start_updating_at_episode = 100
-config_tree_dual_policy_iteration.update_episode_perodicity = 100 
-config_tree_dual_policy_iteration.learn_epochs = 1
+config_tree_dual_policy_iteration.update_episode_perodicity = 20
+config_tree_dual_policy_iteration.learn_epochs = 3
 config_tree_dual_policy_iteration.batches_per_epoch = 1000
 config_tree_dual_policy_iteration.max_transition_memory = 20000
-config_tree_dual_policy_iteration.num_data_workers = 0 #single mode
+config_tree_dual_policy_iteration.num_data_workers = 2 #single mode
 
 #! OUTDATED BELOW
 """ Config_Reinforce """
@@ -153,15 +151,15 @@ config.exploration_worker_difference = 2.0
 #agent = Tree_Dual_Policy_Iteration(config_reinforce)
 
 #tree_agent = K_Best_First_Minimax_Rollout(config.environment.environment,k=2,num_iterations=20,num_rollouts_per_node=2,debug=False)
-tree_agent = K_Best_First_Minimax_V(config.environment.environment,Epsilon_Greedy_Exploration(0.10),k=1,num_iterations=100,network=net,batch_size=20)
+tree_agent = K_Best_First_Minimax_V(config.environment.environment,Epsilon_Greedy_Exploration(0.10),k=4,num_iterations=25,network=net,batch_size=20000)
 agent = TDPI_Terminal_Learning(net,tree_agent,config_tree_dual_policy_iteration)
-
+'''
 mimic_config = deepcopy(config_tree_dual_policy_iteration)
 mimic_config.environment = config_tree_dual_policy_iteration.environment.environment
 mimic_agent = TDPI_Terminal_Learning(net,tree_agent,mimic_config)
-
-#config.environment.add_agent(MCTS_Search(config.environment.environment,n_iterations=100))
-config.environment.set_adversary(mimic_agent)
+'''
+config.environment.set_adversary(MCTS_Search(config.environment.environment,n_iterations=100))
+#config.environment.set_adversary(mimic_agent)
 game_scores, rolling_scores, time_taken = agent.run_n_episodes(num_episodes=10000)
 
 

@@ -102,9 +102,10 @@ class TDPI_Terminal_Learning(Tree_Dual_Policy_Iteration):
             if wins[0] > wins[1]:
                 self.network = previous_network
         
+        '''
         if self.episode_number % 300 == 0:
             self.test(30)
-
+        '''
 
     def test(self,n):
         self.tree_agent.exploration_st.turn_off_exploration()
